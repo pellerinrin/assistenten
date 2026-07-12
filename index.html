@@ -134,6 +134,14 @@ input:focus,select:focus{outline:none; border-color:var(--bronze)}
 .bubbla.ass{align-self:flex-start; background:var(--paper); border:1px solid var(--line)}
 .chatt-form{display:flex; gap:8px}
 .chatt-form input{flex:1; min-width:0}
+.mik{
+  border:1px solid var(--line); background:#fff; color:var(--ink); width:44px; flex:none;
+  border-radius:11px; font-size:17px; cursor:pointer;
+}
+.mik.lyssnar{border-color:var(--red); background:var(--red); color:#fff; animation:puls 1.2s ease-in-out infinite}
+@keyframes puls{50%{opacity:.55}}
+.las-upp{border:none; background:none; cursor:pointer; font-size:13px; padding:0 2px; opacity:.7}
+.las-upp:hover{opacity:1}
 
 /* ---- knappar ---- */
 .btn{
@@ -431,6 +439,10 @@ function renderIdag(){
   const ts = fmtDate(t);
   const d = state.data || {};
   const vk = d.vardagskoll || null;
+  /* bevara det Anna håller på att skriva i chatten när vyn ritas om */
+  const gammalInput = document.getElementById('prataInput');
+  const inTxt = gammalInput ? gammalInput.value : '';
+  const hadeFokus = !!gammalInput && document.activeElement === gammalInput;
   let html = '';
 
   if(!state.kod){
@@ -444,6 +456,21 @@ function renderIdag(){
     document.getElementById('view-idag').innerHTML = html;
     return;
   }
+
+  /* ---- prata med assistenten ---- */
+  html += '<div class="card"><h2>🖋 Prata med mig</h2>' +
+    '<div class="chatt" id="prataChatt">' +
+    prataChat.map((m, i) =>
+      '<div class="bubbla ' + (m.roll === 'jag' ? 'jag' : 'ass') + '">' + esc(m.text) +
+      (m.roll === 'ass' && KAN_TALA ? ' <button class="las-upp" title="Läs upp" onclick="App.lasUpp(' + i + ')">🔊</button>' : '') +
+      '</div>').join('') +
+    (prataSkickar ? '<div class="bubbla ass dim">skriver…</div>' : '') +
+    '</div>' +
+    '<div class="chatt-form">' +
+    (KAN_LYSSNA ? '<button class="mik" id="prataMik" title="Prata in" onclick="App.rostLyssna()">🎤</button>' : '') +
+    '<input type="text" id="prataInput" placeholder="Fråga, eller be mig komma ihåg något…" onkeydown="if(event.key===\'Enter\')App.prataSkicka(false)">' +
+    '<button class="btn" onclick="App.prataSkicka(false)">Skicka</button>' +
+    '</div></div>';
 
   /* ---- morgonbriefen ---- */
   const b = d.brief;
@@ -535,6 +562,15 @@ function renderIdag(){
   }
 
   document.getElementById('view-idag').innerHTML = html;
+
+  /* återställ chattens läge efter omritningen */
+  const nyInput = document.getElementById('prataInput');
+  if(nyInput && inTxt) nyInput.value = inTxt;
+  if(nyInput && hadeFokus) nyInput.focus();
+  const pc = document.getElementById('prataChatt');
+  if(pc) pc.scrollTop = pc.scrollHeight;
+  const mik = document.getElementById('prataMik');
+  if(mik) mik.classList.toggle('lyssnar', rostAktiv);
 }
 
 function renderBevaka(){
@@ -593,6 +629,88 @@ function renderBevaka(){
   }
 
   document.getElementById('view-bevaka').innerHTML = html;
+}
+
+/* ================= Prata med assistenten ================= */
+/* Chatten på förstasidan. Hålls i minnet (nollställs när appen laddas om);
+   AI-anropen går via /api/assistent som håller nyckeln på servern och
+   räknar mot kontots dagliga AI-tak. */
+const KAN_LYSSNA = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+const KAN_TALA = 'speechSynthesis' in window;
+
+let prataChat = [{ roll: 'ass', text: 'Hej! Fråga mig om dagen — barnen, mejlen, pengarna, skrivandet — eller be mig komma ihåg något åt dig.' }];
+let prataSkickar = false;
+let rostAktiv = false;
+let rostIgang = null;
+
+/* svensk röst för uppläsning (listan laddas ibland i efterhand) */
+let rostSv = null;
+function valjRost(){
+  const alla = (window.speechSynthesis && speechSynthesis.getVoices()) || [];
+  rostSv = alla.find(v => v.lang === 'sv-SE') || alla.find(v => String(v.lang || '').toLowerCase().startsWith('sv')) || null;
+}
+if(KAN_TALA){
+  valjRost();
+  speechSynthesis.onvoiceschanged = valjRost;
+}
+function talUpp(text){
+  if(!KAN_TALA || !text) return;
+  try{
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(String(text));
+    u.lang = 'sv-SE';
+    if(!rostSv) valjRost();
+    if(rostSv) u.voice = rostSv;
+    speechSynthesis.speak(u);
+  }catch(e){ /* uppläsning är grädde på moset — aldrig ett fel värt att visa */ }
+}
+
+function prataSystemPrompt(){
+  const t = todayDate();
+  const d = state.data || {};
+  const vk = d.vardagskoll || {};
+  /* barnens vecka i kompakt, läsbar form */
+  const vecka = [];
+  for(let i = 0; i < 7; i++){
+    const dt = addDays(t, i), ds = fmtDate(dt);
+    const bitar = [];
+    if(vk.barnDagar && vk.barnDagar[ds]) bitar.push('barnen hos Anna');
+    for(const b of (vk.barn || [])) if((b.gympa || []).includes(wIdx(dt))) bitar.push(b.namn + ' har gympa');
+    if(vk.middagar && vk.middagar[ds] && vk.middagar[ds].name) bitar.push('middag: ' + vk.middagar[ds].name);
+    if(bitar.length) vecka.push(WDAYS[wIdx(dt)] + ' ' + ds + ': ' + bitar.join(', '));
+  }
+  const brief = (d.brief && d.brief.datum === fmtDate(t)) ? d.brief : null;
+  const mejl = d.mejl || {};
+  return 'Du är Annas personliga assistent i appen Assistenten — en stillsam, varm och kunnig sekreterare. ' +
+    'Anna är författare och frilansande kulturskribent, ensamstående med barn.\n' +
+    'Idag är ' + WDAYS[wIdx(t)] + ' ' + fmtDate(t) + '.\n\n' +
+    'DAGSLÄGET:\n' +
+    (brief ? 'Dagens morgonbrief: ' + brief.halsning + ' ' + (brief.punkter || []).map(p => (p.rubrik ? p.rubrik + ': ' : '') + p.text).join(' ') + '\n' : 'Ingen morgonbrief har skrivits idag ännu.\n') +
+    (vecka.length ? 'Barnens och husets vecka:\n' + vecka.join('\n') + '\n' : '') +
+    'Öppna bevakningar: ' + JSON.stringify(state.poster.filter(p => !p.klar).map(p => ({ omrade: p.omrade, text: p.text, datum: p.datum || null }))) + '\n' +
+    'Kommande jobbresor: ' + JSON.stringify((d.jobbresor || []).filter(r => (r.end || r.start) >= fmtDate(t))) + '\n' +
+    'Karriär: ' + JSON.stringify(d.skrivbordet || {}) + ' (deadline = skrivdeadline, targetKr = intäktsmål)\n' +
+    'Ekonomi, väntande poster (in = ska faktureras/komma in, ut = ska betalas): ' +
+    JSON.stringify(state.ekonomiPoster.map(p => ({ typ: p.typ, beskrivning: p.beskrivning, belopp: p.belopp, forfallodatum: p.forfallodatum }))) +
+    ' Saldon: ' + JSON.stringify(state.ekonomiSaldon) + '\n' +
+    'Ur mejlen: viktiga: ' + JSON.stringify((mejl.viktiga || []).slice(0, 8)) +
+    ' obesvarade: ' + JSON.stringify((mejl.obesvarade || []).slice(0, 8)) +
+    ' datum som hittats: ' + JSON.stringify((mejl.datumfynd || []).slice(0, 10)) + '\n\n' +
+    'Svara ALLTID med exakt ett JSON-objekt och ingen annan text:\n' +
+    '{\n' +
+    '  "svar": "ditt svar på svenska",\n' +
+    '  "action": "ny_bevakning" | "klar_bevakning" | null,\n' +
+    '  "bevakning": { "omrade": "barn" | "karriar" | "hushall" | "halsa", "text": "...", "datum": "ÅÅÅÅ-MM-DD eller null" },\n' +
+    '  "matcha_text": "..."\n' +
+    '}\n' +
+    'Regler:\n' +
+    '- "svar" läses ofta upp högt: skriv naturligt talspråk i hela meningar, utan punktlistor, emojis eller specialtecken. Kort (1–3 meningar) om inte Anna ber om mer.\n' +
+    '- Ber Anna dig komma ihåg, bevaka eller påminna om något: action "ny_bevakning" med rimligt omrade och datum (tolka "imorgon", "på torsdag" osv utifrån dagens datum; null om inget datum nämns).\n' +
+    '- Säger Anna att något är gjort/klart: action "klar_bevakning" och "matcha_text" = ordagrann del av den befintliga bevakningens text. Finns ingen träff, ställ en följdfråga i stället.\n' +
+    '- "bevakning" bara vid "ny_bevakning", "matcha_text" bara vid "klar_bevakning".\n' +
+    '- Fakturor, räkningar och saldon sköts i fliken Ekonomi — hänvisa dit i "svar" och sätt action null.\n' +
+    '- Är något oklart: action null och en kort följdfråga.\n' +
+    '- Gissa aldrig om sådant som inte finns i underlaget — säg hellre att du inte vet.';
 }
 
 /* ================= Ekonomi ================= */
@@ -967,6 +1085,115 @@ const App = {
     renderIdag();
     toast('Klart — struket ur listan');
   },
+  /* ---- prata med assistenten (förstasidan) ---- */
+  async prataSkicka(viaRost){
+    const el = document.getElementById('prataInput');
+    const text = ((el && el.value) || '').trim();
+    if(!text || prataSkickar) return;
+    if(el) el.value = '';
+    prataChat.push({ roll: 'jag', text: text });
+    prataSkickar = true;
+    renderIdag();
+    try{
+      const res = await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kod: state.kod, ai: {
+          system: prataSystemPrompt(),
+          messages: prataChat.slice(-12).map(m => ({
+            role: m.roll === 'jag' ? 'user' : 'assistant',
+            content: m.text
+          }))
+        } })
+      });
+      const data = await res.json().catch(() => null);
+      if(res.status === 429){
+        prataChat.push({ roll: 'ass', text: (data && data.message) || 'Dagens AI-gräns är nådd — vi fortsätter imorgon.' });
+        return;
+      }
+      if(!res.ok || !data || !data.text) throw new Error('http ' + res.status);
+      const resultat = tolkaJSONObjekt(data.text);
+      if(!resultat || !resultat.svar){
+        prataChat.push({ roll: 'ass', text: 'Något gick fel — kan du försöka igen?' });
+        return;
+      }
+      let extra = '';
+      if(resultat.action === 'ny_bevakning' && resultat.bevakning && resultat.bevakning.text){
+        state.poster.push({
+          id: 'p' + Date.now() + Math.random().toString(36).slice(2, 5),
+          omrade: OMRADEN[resultat.bevakning.omrade] ? resultat.bevakning.omrade : 'hushall',
+          text: String(resultat.bevakning.text),
+          datum: resultat.bevakning.datum ? String(resultat.bevakning.datum) : '',
+          klar: false,
+          skapad: new Date().toISOString()
+        });
+        save(); schedulePosterPush(); renderBevaka();
+      } else if(resultat.action === 'klar_bevakning' && resultat.matcha_text){
+        const sok = String(resultat.matcha_text).toLowerCase();
+        const match = state.poster.find(p => !p.klar && String(p.text).toLowerCase().includes(sok));
+        if(match){
+          match.klar = true;
+          match.klarNar = new Date().toISOString();
+          save(); schedulePosterPush(); renderBevaka();
+        } else {
+          extra = ' (Jag hittade ingen bevakning som matchade, så inget bockades av.)';
+        }
+      }
+      prataChat.push({ roll: 'ass', text: resultat.svar + extra });
+      if(viaRost) talUpp(resultat.svar);
+    }catch(e){
+      prataChat.push({ roll: 'ass', text: 'Jag kom inte fram till kontoret just nu — försök igen om en stund.' });
+    }finally{
+      prataSkickar = false;
+      renderIdag();
+      if(!viaRost){
+        const nyEl = document.getElementById('prataInput');
+        if(nyEl) nyEl.focus();
+      }
+    }
+  },
+  rostLyssna(){
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(!SR){ toast('Röstinmatning stöds inte i den här webbläsaren'); return; }
+    if(rostAktiv){
+      try{ rostIgang.stop(); }catch(e){}
+      return;
+    }
+    /* liten tyst utterance i klickögonblicket låser upp uppläsning på iPhone */
+    if(KAN_TALA){ try{ speechSynthesis.speak(new SpeechSynthesisUtterance('')); }catch(e){} }
+    const r = new SR();
+    rostIgang = r;
+    r.lang = 'sv-SE';
+    r.interimResults = false;
+    r.maxAlternatives = 1;
+    r.onresult = (e) => {
+      const text = e.results[0] && e.results[0][0] ? e.results[0][0].transcript : '';
+      if(!text) return;
+      const el = document.getElementById('prataInput');
+      if(el) el.value = text;
+      App.prataSkicka(true);
+    };
+    r.onerror = (e) => {
+      if(e.error === 'not-allowed') toast('Ge webbläsaren lov att använda mikrofonen');
+      else if(e.error !== 'aborted') toast('Jag hörde inte riktigt — försök igen');
+    };
+    r.onend = () => {
+      rostAktiv = false;
+      const b = document.getElementById('prataMik');
+      if(b) b.classList.remove('lyssnar');
+    };
+    try{
+      r.start();
+      rostAktiv = true;
+      const b = document.getElementById('prataMik');
+      if(b) b.classList.add('lyssnar');
+    }catch(e){ rostAktiv = false; }
+  },
+  lasUpp(i){
+    const m = prataChat[i];
+    if(m) talUpp(m.text);
+  },
+
   async ekoSkicka(){
     const el = document.getElementById('ekoChatInput');
     const text = ((el && el.value) || '').trim();

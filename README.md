@@ -29,7 +29,9 @@ Koden ger tillgång till assistentens egna nycklar plus läskopior av jobbresor 
 - `assistent-ekonomi-poster` — `[{ id, typ: in|ut, beskrivning, belopp, forfallodatum, status }]` (Ekonomi-fliken: fakturor och räkningar)
 - `assistent-ekonomi-saldon` — `[{ konto, belopp, uppdaterad }]` (kända kontosaldon)
 
-Ekonomi-flikens chatt skickar `POST { kod, ai: { system, messages } }` till samma API — servern vidarebefordrar till Anthropic och räknar anropet mot kontots dagliga AI-tak (delas med Skrivbordet).
+Båda chattarna — "Prata med mig" på förstasidan och Ekonomi-flikens — skickar `POST { kod, ai: { system, messages } }` till samma API; servern vidarebefordrar till Anthropic och räknar anropet mot kontots dagliga AI-tak (delas med Skrivbordet).
+
+Förstasidans chatt kan även användas med rösten: mikrofonknappen använder webbläsarens taligenkänning (`SpeechRecognition`, sv-SE) och svar på röstfrågor läses upp med `speechSynthesis`. Chatten känner till hela dagsläget (brief, bevakningar, barnens vecka, jobbresor, karriärmål, ekonomi, mejl) och kan lägga till och bocka av bevakningar via `action`-fältet i AI-svaret.
 
 ## Köra lokalt
 
