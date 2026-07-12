@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Assistenten</title>
+<meta name="description" content="Din stillsamma sekreterare — morgonbrief, bevakningar och koll på vardagen.">
+<meta name="theme-color" content="#f7f3ea">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Assistenten">
+<style>
+:root{
+  --paper:#f7f3ea; --card:#fffdf7; --ink:#2e2a24; --ink-soft:#6f675c; --ink-dim:#9a9084;
+  --line:#e4dccb; --line-soft:#eee7d8;
+  --green:#37503f; --bronze:#a8834b; --terra:#b56c4e; --blue:#6b7fa3; --red:#a03d2e;
+  --shadow:0 1px 3px rgba(60,50,30,.07);
+}
+*{box-sizing:border-box; margin:0; padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  background:var(--paper); color:var(--ink); font-size:15.5px; line-height:1.5;
+  padding-bottom:calc(74px + env(safe-area-inset-bottom));
+}
+h1,h2,h3,.serif{font-family:Georgia,"Times New Roman",serif; font-weight:600}
+button{font-family:inherit}
+
+/* ---- topp ---- */
+.top{
+  max-width:560px; margin:0 auto; padding:20px 18px 6px;
+  display:flex; align-items:flex-end; justify-content:space-between; gap:12px;
+}
+.top h1{font-size:24px; letter-spacing:.02em}
+.top h1 .penna{font-size:19px; margin-left:2px}
+.topdate{color:var(--ink-soft); font-size:13.5px; font-style:italic; font-family:Georgia,serif}
+.refresh{
+  border:1px solid var(--line); background:var(--card); color:var(--ink-soft);
+  width:38px; height:38px; border-radius:50%; font-size:17px; cursor:pointer; flex:none;
+}
+.refresh:active{transform:rotate(180deg); transition:transform .3s}
+.refresh.snurr{animation:snurr 1s linear infinite}
+@keyframes snurr{to{transform:rotate(360deg)}}
+
+main{max-width:560px; margin:0 auto; padding:10px 14px 24px}
+.view{display:none}
+.view.open{display:block}
+
+/* ---- kort ---- */
+.card{
+  background:var(--card); border:1px solid var(--line); border-radius:14px;
+  padding:16px 16px 14px; margin-bottom:14px; box-shadow:var(--shadow);
+}
+.card h2{font-size:16.5px; margin-bottom:8px}
+.small{font-size:13.5px}
+.muted{color:var(--ink-soft)}
+.dim{color:var(--ink-dim)}
+.center{text-align:center}
+.mono{font-variant-numeric:tabular-nums}
+
+/* ---- brief ---- */
+.brief{border-color:#d8cba9; background:linear-gradient(180deg,#fffdf5,#fbf6e8)}
+.brief .halsning{
+  font-family:Georgia,serif; font-size:16.5px; font-style:italic; color:var(--ink);
+  margin:2px 0 12px; line-height:1.55;
+}
+.brief-punkt{display:flex; gap:10px; padding:9px 0; border-top:1px solid var(--line-soft)}
+.brief-punkt .bp-emoji{flex:none; font-size:17px; line-height:1.4}
+.brief-punkt .bp-rubrik{font-weight:600; font-size:13px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-soft); margin-bottom:1px}
+.brief-sign{margin-top:12px; text-align:right; font-family:Georgia,serif; font-style:italic; color:var(--ink-dim); font-size:13.5px}
+
+/* ---- rader ---- */
+.rad{display:flex; gap:10px; align-items:baseline; padding:8px 0; border-top:1px solid var(--line-soft); font-size:14.5px}
+.rad:first-of-type{border-top:none}
+.rad .r-emoji{flex:none; width:24px; text-align:center}
+.rad .r-text{flex:1}
+.rad .r-nar{flex:none; font-size:12.5px; color:var(--ink-dim); font-style:italic}
+.rad .r-nar.sen{color:var(--red); font-weight:600; font-style:normal}
+.rad .r-nar.idag{color:var(--green); font-weight:600; font-style:normal}
+
+/* ---- bevakningar ---- */
+.omr-rubrik{display:flex; align-items:center; gap:8px; margin:4px 0 6px}
+.omr-rubrik .streck{flex:1; height:1px; background:var(--line)}
+.omr-rubrik h3{font-size:14px; letter-spacing:.05em; color:var(--ink-soft); text-transform:uppercase; font-weight:600}
+.post{display:flex; gap:10px; align-items:flex-start; padding:9px 2px; border-top:1px solid var(--line-soft)}
+.post:first-of-type{border-top:none}
+.post input[type=checkbox]{width:19px; height:19px; margin-top:2px; accent-color:var(--green); flex:none}
+.post .p-text{flex:1}
+.post .p-datum{font-size:12.5px; color:var(--ink-dim); font-style:italic}
+.post .p-datum.sen{color:var(--red); font-weight:600; font-style:normal}
+.post.klar .p-text{text-decoration:line-through; color:var(--ink-dim)}
+.post .p-bort{border:none; background:none; color:var(--ink-dim); font-size:15px; cursor:pointer; padding:2px 6px}
+.post .p-bort:hover{color:var(--red)}
+
+.ny-form{display:flex; flex-direction:column; gap:8px}
+.ny-form input[type=text]{width:100%}
+.ny-rad2{display:flex; gap:8px; flex-wrap:wrap}
+input[type=text],input[type=date],select{
+  border:1px solid var(--line); border-radius:10px; padding:9px 11px; font-size:15px;
+  background:#fff; color:var(--ink); font-family:inherit;
+}
+input:focus,select:focus{outline:none; border-color:var(--bronze)}
+.ny-rad2 select{flex:1; min-width:130px}
+
+/* ---- mejl ---- */
+.mejl-item{padding:10px 0; border-top:1px solid var(--line-soft)}
+.mejl-item:first-of-type{border-top:none}
+.mejl-item .m-amne{font-weight:600}
+.mejl-item .m-fran{font-size:12.5px; color:var(--ink-dim)}
+.mejl-item .m-sammanfattning{font-size:14px; color:var(--ink-soft); margin-top:2px}
+
+/* ---- knappar ---- */
+.btn{
+  border:1px solid var(--green); background:var(--green); color:#fdfbf4;
+  border-radius:11px; padding:9px 16px; font-size:14.5px; cursor:pointer;
+}
+.btn.ghost{background:transparent; color:var(--green)}
+.btn.small{padding:6px 12px; font-size:13.5px}
+.btn.danger{border-color:var(--red); background:transparent; color:var(--red)}
+.btn:active{transform:translateY(1px)}
+.knapprad{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px}
+
+.inline-form{display:flex; gap:8px; margin-top:8px}
+.inline-form input{flex:1; min-width:0; text-transform:uppercase; letter-spacing:.08em}
+
+/* ---- flikar ---- */
+.tabs{
+  position:fixed; bottom:0; left:0; right:0; z-index:5;
+  background:var(--card); border-top:1px solid var(--line);
+  display:flex; justify-content:space-around;
+  padding:6px 4px calc(6px + env(safe-area-inset-bottom));
+}
+.tabs button{
+  border:none; background:none; color:var(--ink-dim); cursor:pointer;
+  display:flex; flex-direction:column; align-items:center; gap:1px;
+  font-size:19px; padding:4px 14px; border-radius:10px;
+}
+.tabs button span{font-size:11px; letter-spacing:.02em}
+.tabs button.aktiv{color:var(--green); background:#eef0e6}
+
+/* ---- toast ---- */
+#toast{
+  position:fixed; left:50%; bottom:calc(86px + env(safe-area-inset-bottom)); transform:translateX(-50%) translateY(8px);
+  background:var(--ink); color:#f7f3ea; border-radius:12px; padding:9px 16px; font-size:14px;
+  opacity:0; pointer-events:none; transition:.25s; max-width:88vw; text-align:center; z-index:9;
+}
+#toast.show{opacity:1; transform:translateX(-50%)}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div>
+    <h1>Assistenten <span class="penna">🖋</span></h1>
+    <p class="topdate" id="topDate"></p>
+  </div>
+  <button class="refresh" id="refreshBtn" onclick="hamta(true)" title="Hämta nytt" aria-label="Hämta nytt">↻</button>
+</header>
+
+<main>
+  <div id="view-idag" class="view"></div>
+  <div id="view-bevaka" class="view"></div>
+  <div id="view-mejl" class="view"></div>
+  <div id="view-mer" class="view"></div>
+</main>
+
+<nav class="tabs">
+  <button id="tab-idag" onclick="App.go('idag')">☕<span>Idag</span></button>
+  <button id="tab-bevaka" onclick="App.go('bevaka')">🗒️<span>Bevaka</span></button>
+  <button id="tab-mejl" onclick="App.go('mejl')">✉️<span>Mejl</span></button>
+  <button id="tab-mer" onclick="App.go('mer')">⚙️<span>Mer</span></button>
+</nav>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+
+/* ================= Datum & småhjälp ================= */
+const WDAYS = ['måndag','tisdag','onsdag','torsdag','fredag','lördag','söndag'];
+const MONTHS = ['januari','februari','mars','april','maj','juni','juli','augusti','september','oktober','november','december'];
+function pad2(n){ return String(n).padStart(2,'0'); }
+function fmtDate(d){ return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
+function parseDate(s){ const p=String(s).split('-').map(Number); return new Date(p[0],p[1]-1,p[2]); }
+function todayDate(){ const n=new Date(); return new Date(n.getFullYear(),n.getMonth(),n.getDate()); }
+function addDays(d,n){ const t=new Date(d.getFullYear(),d.getMonth(),d.getDate()); t.setDate(t.getDate()+n); return t; }
+function wIdx(d){ return (d.getDay()+6)%7; } /* 0 = måndag, samma som Vardagskoll */
+function cap(s){ return s.charAt(0).toUpperCase()+s.slice(1); }
+function humanDate(d){ return WDAYS[wIdx(d)]+' '+d.getDate()+' '+MONTHS[d.getMonth()]; }
+function isoWeek(d){
+  const t = addDays(d, 3 - wIdx(d));
+  const jan4 = new Date(t.getFullYear(), 0, 4);
+  return 1 + Math.round((t - addDays(jan4, -wIdx(jan4))) / (7*24*3600*1000));
+}
+/* dagar från idag till datumsträngen (negativt = passerat) */
+function dagarTill(ds){ return Math.round((parseDate(ds) - todayDate()) / (24*3600*1000)); }
+function narText(ds){
+  const n = dagarTill(ds);
+  if(n < 0) return { text: (n === -1 ? 'igår' : Math.abs(n)+' dagar sedan'), klass: 'sen' };
+  if(n === 0) return { text: 'idag', klass: 'idag' };
+  if(n === 1) return { text: 'imorgon', klass: '' };
+  if(n < 7) return { text: 'på '+WDAYS[wIdx(parseDate(ds))], klass: '' };
+  const d = parseDate(ds);
+  return { text: d.getDate()+' '+MONTHS[d.getMonth()], klass: '' };
+}
+function esc(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function toast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.classList.remove('show'), 2400);
+}
+
+/* ================= Livsområden ================= */
+const OMRADEN = {
+  barn:    { namn: 'Barnen',            emoji: '🧸' },
+  karriar: { namn: 'Karriär',           emoji: '✒️' },
+  hushall: { namn: 'Hushåll & ekonomi', emoji: '🏡' },
+  halsa:   { namn: 'Hälsa & privat',    emoji: '🌿' },
+};
+
+/* ================= State ================= */
+const LS_KEY = 'assistenten-v1';
+const API = 'https://skrivbordet.vercel.app/api/assistent';
+
+let state = {
+  kod: '',
+  data: {},          /* senaste svar från API:t: brief, poster, mejl, vardagskoll, jobbresor, skrivbordet */
+  dataTid: 0,
+  poster: [],        /* lokal spegel av bevakningarna (source of truth är kontot) */
+  posterDirty: false,
+  notified: {},
+  visaKlara: false,
+};
+
+function load(){
+  try{
+    const raw = localStorage.getItem(LS_KEY);
+    if(raw) state = Object.assign(state, JSON.parse(raw));
+  }catch(e){ /* börja om från tomt */ }
+}
+function save(){
+  try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+  catch(e){ toast('⚠️ Kunde inte spara lokalt'); }
+}
+
+/* ================= Hämta & skicka ================= */
+let hamtaLast = 0;
+
+async function hamta(force){
+  if(!state.kod){ renderAll(); return; }
+  const now = Date.now();
+  if(!force && now - hamtaLast < 3 * 60 * 1000) return;
+  hamtaLast = now;
+  const btn = document.getElementById('refreshBtn');
+  btn.classList.add('snurr');
+  try{
+    /* osparade bevakningar åker upp först, så de inte skrivs över */
+    if(state.posterDirty) await pushPoster();
+    const res = await fetch(API + '?kod=' + encodeURIComponent(state.kod));
+    if(res.status === 404 || res.status === 400){
+      toast('⚠️ Assistentkoden känns inte igen – kontrollera den under Profil i Skrivbordet');
+      return;
+    }
+    if(!res.ok) throw new Error('http ' + res.status);
+    state.data = await res.json() || {};
+    state.dataTid = Date.now();
+    if(!state.posterDirty) state.poster = Array.isArray(state.data.poster) ? state.data.poster : [];
+    save();
+    renderAll();
+    checkNotiser();
+  }catch(e){
+    /* offline eller serverfel: senast hämtade datat visas vidare */
+    if(force) toast('Kunde inte nå kontoret just nu – visar det senaste jag vet');
+  }finally{
+    btn.classList.remove('snurr');
+  }
+}
+
+let posterTimer = null;
+function schedulePosterPush(){
+  state.posterDirty = true;
+  save();
+  clearTimeout(posterTimer);
+  posterTimer = setTimeout(pushPoster, 1200);
+}
+async function pushPoster(){
+  if(!state.kod) return;
+  try{
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kod: state.kod, skriv: { 'assistent-poster': state.poster } })
+    });
+    if(!res.ok) throw new Error('http ' + res.status);
+    state.posterDirty = false;
+    save();
+  }catch(e){
+    /* försök igen vid nästa hämtning */
+  }
+}
+
+/* ================= Notiser (medan appen är öppen) ================= */
+function notiserPa(){ return ('Notification' in window) && Notification.permission === 'granted'; }
+function fireNotis(title, body, key){
+  try{ new Notification(title, { body: body, icon: 'icon-192.png', tag: key }); }catch(e){}
+}
+function checkNotiser(){
+  if(!notiserPa()) return;
+  const ts = fmtDate(todayDate());
+  let changed = false;
+  function once(key, fn){
+    if(state.notified[key]) return;
+    fn();
+    state.notified[key] = ts;
+    changed = true;
+  }
+  /* morgonbriefen har kommit */
+  const b = state.data.brief;
+  if(b && b.datum === ts) once('b-' + b.datum, () =>
+    fireNotis('Assistenten ☕', 'Morgonbriefen är klar – slå dig ner en stund.', 'b-' + b.datum));
+  /* bevakningar med datum: imorgon och på dagen */
+  for(const p of state.poster){
+    if(p.klar || !p.datum) continue;
+    const n = dagarTill(p.datum);
+    if(n === 1) once('p-' + p.id + '-1', () => fireNotis('Assistenten 🗒️', 'Imorgon: ' + p.text, 'p-' + p.id));
+    if(n === 0) once('p-' + p.id + '-0', () => fireNotis('Assistenten 🗒️', 'Idag: ' + p.text, 'p-' + p.id));
+  }
+  /* datum som assistenten hittat i mejlen */
+  const fynd = (state.data.mejl && state.data.mejl.datumfynd) || [];
+  for(const f of fynd){
+    if(!f.datum) continue;
+    const n = dagarTill(f.datum);
+    if(n === 1) once('d-' + f.datum + '-' + String(f.text).slice(0, 24), () =>
+      fireNotis('Assistenten ✉️', 'Imorgon: ' + f.text, 'd-' + f.datum));
+  }
+  /* städa gamla nycklar */
+  const limit = fmtDate(addDays(todayDate(), -14));
+  for(const k of Object.keys(state.notified)){
+    if(state.notified[k] < limit){ delete state.notified[k]; changed = true; }
+  }
+  if(changed) save();
+}
+
+/* ================= Vyer ================= */
+function radHtml(emoji, text, nar){
+  return '<div class="rad"><span class="r-emoji">' + emoji + '</span>' +
+    '<span class="r-text">' + text + '</span>' +
+    (nar ? '<span class="r-nar ' + nar.klass + '">' + esc(nar.text) + '</span>' : '') +
+    '</div>';
+}
+
+function renderIdag(){
+  const t = todayDate();
+  const ts = fmtDate(t);
+  const d = state.data || {};
+  const vk = d.vardagskoll || null;
+  let html = '';
+
+  if(!state.kod){
+    html += '<div class="card"><h2>Välkommen 🖋</h2>' +
+      '<p class="small muted">Jag är din assistent — jag håller ordning på barn, karriär, hushåll och allt däremellan, och lämnar en morgonbrief varje dag.</p>' +
+      '<p class="small muted" style="margin-top:8px">Så här kommer vi igång:</p>' +
+      '<p class="small" style="margin-top:6px">1. Öppna <b>Skrivbordet</b> → Profil → <b>Skapa assistentkod</b><br>' +
+      '2. Klistra in koden här under <b>Mer</b><br>' +
+      '3. Klistra in samma kod i <b>Vardagskoll</b> under Mer, så känner jag till barnens schema</p>' +
+      '<div class="knapprad"><button class="btn" onclick="App.go(\'mer\')">Till inställningarna</button></div></div>';
+    document.getElementById('view-idag').innerHTML = html;
+    return;
+  }
+
+  /* ---- morgonbriefen ---- */
+  const b = d.brief;
+  if(b && b.datum === ts){
+    html += '<div class="card brief"><h2>☕ Morgonbrief</h2>' +
+      (b.halsning ? '<p class="halsning">' + esc(b.halsning) + '</p>' : '');
+    for(const p of (b.punkter || [])){
+      html += '<div class="brief-punkt"><span class="bp-emoji">' + esc(p.emoji || '•') + '</span>' +
+        '<div><div class="bp-rubrik">' + esc(p.rubrik || '') + '</div>' +
+        '<div class="small">' + esc(p.text || '') + '</div></div></div>';
+    }
+    html += '<p class="brief-sign">— din assistent</p></div>';
+  } else {
+    html += '<div class="card brief"><h2>☕ Morgonbrief</h2>' +
+      '<p class="small muted">Ingen brief ännu idag. Den skrivs på morgonen när din dator är igång' +
+      (b && b.datum ? ' — den senaste är från ' + esc(humanDate(parseDate(b.datum))) + '.' : '.') + '</p>';
+    if(b && b.datum && b.halsning){
+      html += '<details style="margin-top:8px"><summary class="small muted" style="cursor:pointer">Visa den senaste briefen</summary>' +
+        '<p class="halsning" style="margin-top:8px">' + esc(b.halsning) + '</p>';
+      for(const p of (b.punkter || [])){
+        html += '<div class="brief-punkt"><span class="bp-emoji">' + esc(p.emoji || '•') + '</span>' +
+          '<div><div class="bp-rubrik">' + esc(p.rubrik || '') + '</div>' +
+          '<div class="small">' + esc(p.text || '') + '</div></div></div>';
+      }
+      html += '</details>';
+    }
+    html += '</div>';
+  }
+
+  /* ---- läget idag ---- */
+  let lage = '';
+  if(vk){
+    const barnIdag = vk.barnDagar && vk.barnDagar[ts];
+    const barnImorgon = vk.barnDagar && vk.barnDagar[fmtDate(addDays(t,1))];
+    lage += radHtml('🧸', barnIdag ? 'Barnen är hos dig idag' + (barnImorgon ? ' och imorgon' : '') :
+      (barnImorgon ? 'Barnen kommer till dig imorgon' : 'Barnen är inte hos dig idag'));
+    for(const barn of (vk.barn || [])){
+      const g = barn.gympa || [];
+      if(g.includes(wIdx(t))) lage += radHtml('🤸', esc(barn.namn) + ' har gympa idag – är påsen med?');
+      if(g.includes(wIdx(addDays(t,1)))) lage += radHtml('👟', esc(barn.namn) + ' har gympa imorgon – packa påsen ikväll');
+    }
+    const middag = vk.middagar && vk.middagar[ts];
+    if(middag) lage += radHtml('🍲', 'Middag: ' + esc((middag.emoji ? middag.emoji + ' ' : '') + (middag.name || '')));
+    const stadIdag = (vk.stad || []).filter(s => s.dag === wIdx(t));
+    if(stadIdag.length) lage += radHtml('🧹', 'Städ idag: ' + esc(stadIdag.map(s => s.namn).join(', ')));
+    if(vk.inkopKvar > 0) lage += radHtml('🛒', vk.inkopKvar + (vk.inkopKvar === 1 ? ' sak' : ' saker') + ' på inköpslistan');
+  }
+  const resor = Array.isArray(d.jobbresor) ? d.jobbresor : [];
+  const paResa = resor.find(r => r.start <= ts && ts <= (r.end || r.start));
+  if(paResa){
+    lage += radHtml('🧳', 'Jobbresa: ' + esc(paResa.label || 'Jobbresa'), narText(paResa.end || paResa.start).text === 'idag' ? { text: 'sista dagen', klass: '' } : { text: 'till ' + narText(paResa.end).text, klass: '' });
+  } else {
+    const nasta = resor.filter(r => r.start > ts).sort((a,b) => a.start.localeCompare(b.start))[0];
+    if(nasta && dagarTill(nasta.start) <= 14) lage += radHtml('🧳', 'Nästa jobbresa: ' + esc(nasta.label || 'Jobbresa'), narText(nasta.start));
+  }
+  const sb = d.skrivbordet || {};
+  if(sb.deadline){
+    const n = dagarTill(sb.deadline);
+    if(n >= 0) lage += radHtml('✒️', 'Skrivdeadline', narText(sb.deadline));
+    else lage += radHtml('✒️', 'Skrivdeadline passerad', narText(sb.deadline));
+  }
+  if(lage){
+    html += '<div class="card"><h2>Läget idag</h2>' + lage + '</div>';
+  } else {
+    html += '<div class="card"><h2>Läget idag</h2><p class="small muted">Inget särskilt att rapportera. ' +
+      (vk ? '' : 'Koppla Vardagskoll (samma kod, under Mer där) så ser jag barnens schema också.') + '</p></div>';
+  }
+
+  /* ---- att hålla ögonen på ---- */
+  const bevakning = [];
+  for(const p of state.poster){
+    if(p.klar || !p.datum) continue;
+    if(dagarTill(p.datum) <= 10) bevakning.push({ datum: p.datum, emoji: OMRADEN[p.omrade] ? OMRADEN[p.omrade].emoji : '🗒️', text: esc(p.text) });
+  }
+  for(const f of ((d.mejl && d.mejl.datumfynd) || [])){
+    if(!f.datum || dagarTill(f.datum) < 0 || dagarTill(f.datum) > 14) continue;
+    bevakning.push({ datum: f.datum, emoji: '✉️', text: esc(f.text) });
+  }
+  bevakning.sort((a,b) => a.datum.localeCompare(b.datum));
+  if(bevakning.length){
+    html += '<div class="card"><h2>Att hålla ögonen på</h2>';
+    for(const r of bevakning) html += radHtml(r.emoji, r.text, narText(r.datum));
+    html += '</div>';
+  }
+
+  document.getElementById('view-idag').innerHTML = html;
+}
+
+function renderBevaka(){
+  let html = '<div class="card"><h2>Ny bevakning</h2>' +
+    '<div class="ny-form">' +
+    '<input type="text" id="nyText" placeholder="t.ex. Boka tandläkartid till barnen" onkeydown="if(event.key===\'Enter\')App.nyPost()">' +
+    '<div class="ny-rad2">' +
+    '<select id="nyOmrade">' +
+    Object.keys(OMRADEN).map(k => '<option value="' + k + '">' + OMRADEN[k].emoji + ' ' + OMRADEN[k].namn + '</option>').join('') +
+    '</select>' +
+    '<input type="date" id="nyDatum" title="Datum (valfritt)">' +
+    '<button class="btn" onclick="App.nyPost()">Lägg till</button>' +
+    '</div></div></div>';
+
+  const oppna = state.poster.filter(p => !p.klar);
+  const klara = state.poster.filter(p => p.klar);
+
+  for(const k of Object.keys(OMRADEN)){
+    const lista = oppna.filter(p => p.omrade === k)
+      .sort((a,b) => (a.datum || '9999').localeCompare(b.datum || '9999'));
+    if(!lista.length) continue;
+    html += '<div class="omr-rubrik"><h3>' + OMRADEN[k].emoji + ' ' + OMRADEN[k].namn + '</h3><div class="streck"></div></div>';
+    html += '<div class="card" style="padding-top:8px;padding-bottom:8px">';
+    for(const p of lista){
+      const nar = p.datum ? narText(p.datum) : null;
+      html += '<div class="post">' +
+        '<input type="checkbox" onchange="App.togglePost(\'' + p.id + '\')">' +
+        '<div class="p-text">' + esc(p.text) +
+        (nar ? '<div class="p-datum ' + nar.klass + '">' + esc(cap(nar.text)) + '</div>' : '') +
+        '</div>' +
+        '<button class="p-bort" title="Ta bort" onclick="App.bortPost(\'' + p.id + '\')">✕</button>' +
+        '</div>';
+    }
+    html += '</div>';
+  }
+
+  if(!oppna.length){
+    html += '<div class="card center"><p class="small muted">Inga öppna bevakningar — skrivbordet är rent. 🕊️</p></div>';
+  }
+
+  if(klara.length){
+    html += '<div class="card" style="padding-top:10px;padding-bottom:10px">' +
+      '<p class="small muted" style="cursor:pointer" onclick="App.toggleKlara()">' +
+      (state.visaKlara ? '▾' : '▸') + ' ' + klara.length + ' avklarade</p>';
+    if(state.visaKlara){
+      for(const p of klara.slice(-20).reverse()){
+        html += '<div class="post klar">' +
+          '<input type="checkbox" checked onchange="App.togglePost(\'' + p.id + '\')">' +
+          '<div class="p-text">' + esc(p.text) + '</div>' +
+          '<button class="p-bort" title="Ta bort" onclick="App.bortPost(\'' + p.id + '\')">✕</button>' +
+          '</div>';
+      }
+      html += '<div class="knapprad"><button class="btn small ghost" onclick="App.rensaKlara()">Rensa avklarade</button></div>';
+    }
+    html += '</div>';
+  }
+
+  document.getElementById('view-bevaka').innerHTML = html;
+}
+
+function renderMejl(){
+  const m = (state.data && state.data.mejl) || null;
+  let html = '';
+  if(!m){
+    html = '<div class="card"><h2>✉️ Mejlöversikt</h2>' +
+      '<p class="small muted">Här sammanfattar jag din inkorg varje morgon: vad som är viktigt, vad som väntar på svar och vilka datum som gömmer sig i mejlen. Första översikten dyker upp efter nästa morgonbrief.</p></div>';
+  } else {
+    html = '<div class="card"><p class="small dim">Senast genomgången ' +
+      esc(m.uppdaterad ? new Date(m.uppdaterad).toLocaleString('sv-SE', { weekday: 'long', hour: '2-digit', minute: '2-digit' }) : '–') + '</p></div>';
+
+    const viktiga = m.viktiga || [];
+    html += '<div class="card"><h2>Viktigt just nu</h2>';
+    if(viktiga.length){
+      for(const v of viktiga){
+        html += '<div class="mejl-item"><div class="m-amne">' + esc(v.amne || '(utan ämne)') + '</div>' +
+          '<div class="m-fran">' + esc(v.fran || '') + '</div>' +
+          (v.sammanfattning ? '<div class="m-sammanfattning">' + esc(v.sammanfattning) + '</div>' : '') +
+          '</div>';
+      }
+    } else {
+      html += '<p class="small muted">Inget som kräver något av dig just nu.</p>';
+    }
+    html += '</div>';
+
+    const obesvarade = m.obesvarade || [];
+    if(obesvarade.length){
+      html += '<div class="card"><h2>Väntar på svar från dig</h2>';
+      for(const o of obesvarade){
+        html += '<div class="mejl-item"><div class="m-amne">' + esc(o.amne || '(utan ämne)') + '</div>' +
+          '<div class="m-fran">' + esc(o.fran || '') + (o.dagar ? ' · ' + o.dagar + (o.dagar === 1 ? ' dag' : ' dagar') + ' utan svar' : '') + '</div>' +
+          '</div>';
+      }
+      html += '</div>';
+    }
+
+    const fynd = m.datumfynd || [];
+    if(fynd.length){
+      html += '<div class="card"><h2>Datum jag hittat i mejlen</h2>';
+      for(const f of fynd.slice().sort((a,b) => String(a.datum).localeCompare(String(b.datum)))){
+        if(f.datum && dagarTill(f.datum) < -1) continue;
+        html += radHtml('📅', esc(f.text || ''), f.datum ? narText(f.datum) : null);
+      }
+      html += '</div>';
+    }
+  }
+  document.getElementById('view-mejl').innerHTML = html;
+}
+
+function renderMer(){
+  let html = '';
+
+  /* koppling */
+  html += '<div class="card"><h2>🔑 Koppling till ditt konto</h2>';
+  if(state.kod){
+    html += '<p class="small">✅ Kopplad med kod <b class="mono">' + esc(state.kod) + '</b></p>' +
+      '<p class="small muted">' + (state.dataTid ? 'Senast hämtat ' + new Date(state.dataTid).toLocaleTimeString('sv-SE', { hour: '2-digit', minute: '2-digit' }) + '.' : 'Inget hämtat ännu.') + '</p>' +
+      '<div class="knapprad">' +
+      '<button class="btn small ghost" onclick="hamta(true)">🔄 Hämta nu</button>' +
+      '<button class="btn small danger" onclick="App.kodBort()">Koppla från</button>' +
+      '</div>';
+  } else {
+    html += '<p class="small muted">Skapa en assistentkod under <b>Profil</b> i Skrivbordet och klistra in den här.</p>' +
+      '<div class="inline-form"><input type="text" id="kodInput" placeholder="XXXX-XXXX" autocapitalize="characters" autocomplete="off" spellcheck="false" onkeydown="if(event.key===\'Enter\')App.kodSpara()">' +
+      '<button class="btn" onclick="App.kodSpara()">Koppla</button></div>';
+  }
+  html += '</div>';
+
+  /* notiser */
+  html += '<div class="card"><h2>🔔 Notiser</h2>';
+  if(!('Notification' in window)){
+    html += '<p class="small muted">Den här webbläsaren stödjer inte notiser. På iPhone: lägg först till appen på hemskärmen.</p>';
+  } else if(Notification.permission === 'granted'){
+    html += '<p class="small">✅ Notiser är på. Jag säger till när morgonbriefen är klar och dagen innan något du bevakar inträffar.</p>' +
+      '<p class="small muted">Notiserna skickas när appen är öppen eller ligger i bakgrunden (bäst stöd på Android).</p>';
+  } else if(Notification.permission === 'denied'){
+    html += '<p class="small muted">Notiser är blockerade i webbläsarens inställningar för den här sidan.</p>';
+  } else {
+    html += '<p class="small muted">Få en knuff när morgonbriefen är klar och dagen innan bevakade datum.</p>' +
+      '<div class="knapprad"><button class="btn small" onclick="App.notiserPa()">Sätt på notiser</button></div>';
+  }
+  html += '</div>';
+
+  /* installera */
+  html += '<div class="card"><h2>📱 Lägg till på hemskärmen</h2>' +
+    '<p class="small muted"><b>iPhone/Safari:</b> tryck Dela → ”Lägg till på hemskärmen”.<br>' +
+    '<b>Android/Chrome:</b> menyn ⋮ → ”Lägg till på startskärmen”.</p></div>';
+
+  /* om */
+  html += '<div class="card"><h2>🖋 Om Assistenten</h2>' +
+    '<p class="small muted">Din stillsamma sekreterare. Hämtar karriärläget och jobbresorna från Skrivbordet, barnens schema från Vardagskoll, och lämnar varje morgon en brief över dagen — som en riktig 1800-talssekreterare, fast utan fjäderpennan.</p>' +
+    '<div class="knapprad"><button class="btn small danger" onclick="App.nollstall()">Nollställ appen på den här enheten</button></div></div>';
+
+  html += '<p class="center small dim">Assistenten 🖋 — i din tjänst.</p>';
+
+  document.getElementById('view-mer').innerHTML = html;
+}
+
+function renderTopp(){
+  const t = todayDate();
+  document.getElementById('topDate').textContent = cap(humanDate(t)) + ' · vecka ' + isoWeek(t);
+}
+function renderAll(){
+  renderTopp();
+  renderIdag();
+  renderBevaka();
+  renderMejl();
+  renderMer();
+}
+
+/* ================= App (flikar + handlingar) ================= */
+const App = {
+  tab: 'idag',
+  go(tab){
+    this.tab = tab;
+    for(const t of ['idag','bevaka','mejl','mer']){
+      document.getElementById('view-' + t).classList.toggle('open', t === tab);
+      document.getElementById('tab-' + t).classList.toggle('aktiv', t === tab);
+    }
+    window.scrollTo(0, 0);
+  },
+
+  nyPost(){
+    const text = document.getElementById('nyText').value.trim();
+    if(!text){ toast('Skriv vad jag ska bevaka först'); return; }
+    const datum = document.getElementById('nyDatum').value || '';
+    const omrade = document.getElementById('nyOmrade').value;
+    state.poster.push({
+      id: 'p' + Date.now() + Math.random().toString(36).slice(2, 5),
+      omrade: omrade, text: text, datum: datum, klar: false,
+      skapad: new Date().toISOString()
+    });
+    save();
+    schedulePosterPush();
+    renderBevaka();
+    renderIdag();
+    toast('Noterat. Jag håller ögonen på det. 🖋');
+  },
+  togglePost(id){
+    const p = state.poster.find(x => x.id === id);
+    if(!p) return;
+    p.klar = !p.klar;
+    p.klarNar = p.klar ? new Date().toISOString() : undefined;
+    save();
+    schedulePosterPush();
+    renderBevaka();
+    renderIdag();
+  },
+  bortPost(id){
+    state.poster = state.poster.filter(x => x.id !== id);
+    save();
+    schedulePosterPush();
+    renderBevaka();
+    renderIdag();
+  },
+  toggleKlara(){
+    state.visaKlara = !state.visaKlara;
+    save();
+    renderBevaka();
+  },
+  rensaKlara(){
+    state.poster = state.poster.filter(p => !p.klar);
+    save();
+    schedulePosterPush();
+    renderBevaka();
+    toast('Avklarade bevakningar rensade');
+  },
+
+  kodSpara(){
+    const el = document.getElementById('kodInput');
+    const kod = (el.value || '').trim().toUpperCase();
+    if(!/^[A-Z2-9]{4}-[A-Z2-9]{4}$/.test(kod)){
+      toast('Koden ska se ut som XXXX-XXXX – kopiera den från Profil i Skrivbordet');
+      return;
+    }
+    state.kod = kod;
+    save();
+    renderMer();
+    toast('Kopplad! Hämtar dina uppgifter…');
+    hamta(true);
+  },
+  kodBort(){
+    state.kod = '';
+    state.data = {};
+    state.dataTid = 0;
+    save();
+    renderAll();
+    toast('Frånkopplad');
+  },
+
+  notiserPa(){
+    Notification.requestPermission().then(p => {
+      renderMer();
+      if(p === 'granted'){
+        toast('Notiser är på 🔔');
+        checkNotiser();
+      }
+    });
+  },
+
+  nollstall(){
+    if(!confirm('Nollställa appen på den här enheten? Bevakningarna finns kvar på ditt konto.')) return;
+    localStorage.removeItem(LS_KEY);
+    location.reload();
+  },
+};
+
+/* ================= Igångsättning ================= */
+load();
+renderAll();
+App.go('idag');
+hamta(true);
+
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+setInterval(() => {
+  hamta();
+  checkNotiser();
+  /* nytt dygn: rita om datumraden och vyerna */
+  const ts = fmtDate(todayDate());
+  if(App._dag !== ts){ App._dag = ts; renderAll(); }
+}, 60000);
+
+document.addEventListener('visibilitychange', () => {
+  if(document.visibilityState === 'visible') hamta(true);
+});
+</script>
+</body>
+</html>
