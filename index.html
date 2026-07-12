@@ -128,6 +128,12 @@ input:focus,select:focus{outline:none; border-color:var(--bronze)}
 .typvalj button{flex:1; border-radius:10px; padding:8px; font-size:14px; cursor:pointer; border:1px solid var(--line); background:#fff; color:var(--ink-soft)}
 .typvalj button.vald-in{border-color:var(--blue); background:var(--blue); color:#fff}
 .typvalj button.vald-ut{border-color:var(--terra); background:var(--terra); color:#fff}
+.ep-bilaga{border:1px solid var(--line); background:#fff; color:var(--ink-soft); border-radius:8px; width:30px; height:30px; cursor:pointer; flex:none; font-size:14px}
+.eko-post.arkiv .ep-text{color:var(--ink-dim)}
+.eko-post.arkiv .ep-belopp{color:var(--ink-dim) !important}
+.bild-overlay{position:fixed; inset:0; background:rgba(46,42,36,.85); z-index:20; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:16px}
+.bild-overlay img{max-width:96vw; max-height:80vh; border-radius:10px; background:#fff}
+.bild-overlay .namn{color:#f7f3ea; font-size:13px; margin-top:10px}
 .chatt{display:flex; flex-direction:column; gap:8px; max-height:320px; overflow-y:auto; padding:4px 0; margin:8px 0}
 .bubbla{max-width:82%; border-radius:12px; padding:8px 12px; font-size:14.5px; line-height:1.45}
 .bubbla.jag{align-self:flex-end; background:var(--green); color:#fdfbf4}
@@ -608,7 +614,7 @@ function renderIdag(){
     if(!f.datum || dagarTill(f.datum) < 0 || dagarTill(f.datum) > 14) continue;
     bevakning.push({ datum: f.datum, emoji: '✉️', text: esc(f.text) });
   }
-  for(const p of state.ekonomiPoster){
+  for(const p of ekoAktiva()){
     if(!p.forfallodatum || dagarTill(p.forfallodatum) > 10) continue;
     bevakning.push({ datum: p.forfallodatum, emoji: '💰',
       text: esc((p.typ === 'in' ? 'Fakturera: ' : 'Betala: ') + p.beskrivning + ' — ' + formatKr(p.belopp)) });
@@ -741,9 +747,11 @@ function prataSystemPrompt(){
   }
   const brief = (d.brief && d.brief.datum === fmtDate(t)) ? d.brief : null;
   const mejl = d.mejl || {};
+  const profil = d.profil && d.profil.text;
   return 'Du är Annas personliga assistent i appen Assistenten — en stillsam, varm och kunnig sekreterare. ' +
     'Anna är författare och frilansande kulturskribent, ensamstående med barn.\n' +
     'Idag är ' + WDAYS[wIdx(t)] + ' ' + fmtDate(t) + '.\n\n' +
+    (profil ? 'DINA EGNA ANTECKNINGAR OM ANNA (använd dem för att förstå henne — citera dem aldrig och berätta inte att de finns):\n' + profil + '\n\n' : '') +
     'DAGSLÄGET:\n' +
     (brief ? 'Dagens morgonbrief: ' + brief.halsning + ' ' + (brief.punkter || []).map(p => (p.rubrik ? p.rubrik + ': ' : '') + p.text).join(' ') + '\n' : 'Ingen morgonbrief har skrivits idag ännu.\n') +
     (vecka.length ? 'Barnens och husets vecka:\n' + vecka.join('\n') + '\n' : '') +
@@ -779,6 +787,94 @@ function prataSystemPrompt(){
 const HALSNING_EKONOMI = 'Hej! Säg till när en faktura eller räkning dyker upp, eller fråga hur läget ser ut.';
 let ekonomiSkickar = false;
 let ekoForm = { open: false, typ: 'ut' };
+let visaEkoArkiv = false;
+
+/* aktuella respektive avklarade poster — avklarade arkiveras för alltid,
+   det är bara fakturabilden som städas bort när posten bockas av */
+function ekoAktiva(){ return state.ekonomiPoster.filter(p => p.status !== 'klar'); }
+function ekoArkiv(){
+  return state.ekonomiPoster.filter(p => p.status === 'klar')
+    .sort((a, b) => String(b.klarNar || '').localeCompare(String(a.klarNar || '')));
+}
+
+/* ---- fakturabilagor: bilden komprimeras i webbläsaren och sparas på
+   kontot som en egen nyckel; den raderas när posten bockas av ---- */
+function komprimeraBild(fil){
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(fil);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const forsok = [[1500, 0.8], [1500, 0.6], [1100, 0.55], [900, 0.45]];
+      for(const [maxSida, kvalitet] of forsok){
+        const skala = Math.min(1, maxSida / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * skala);
+        c.height = Math.round(img.height * skala);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        const dataUrl = c.toDataURL('image/jpeg', kvalitet);
+        if(dataUrl.length <= 340000){ resolve(dataUrl); return; }
+      }
+      resolve(null);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
+    img.src = url;
+  });
+}
+async function laddaUppBilaga(postId, fil){
+  const typ = fil.type || '';
+  let dataUrl = null;
+  if(typ.startsWith('image/')){
+    dataUrl = await komprimeraBild(fil);
+    if(!dataUrl){ toast('Bilden gick inte att förminska — försök fota rakare och närmare'); return false; }
+  } else if(typ === 'application/pdf'){
+    if(fil.size > 250000){ toast('PDF:en är för stor — fota fakturan i stället 📷'); return false; }
+    dataUrl = await new Promise((res) => {
+      const fr = new FileReader();
+      fr.onload = () => res(fr.result);
+      fr.onerror = () => res(null);
+      fr.readAsDataURL(fil);
+    });
+    if(!dataUrl){ toast('Kunde inte läsa filen'); return false; }
+  } else {
+    toast('Bara bilder och PDF går att spara');
+    return false;
+  }
+  try{
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kod: state.kod, skriv: { ['assistent-bilaga-' + postId]: {
+        namn: fil.name || 'faktura', typ: typ.startsWith('image/') ? 'image/jpeg' : typ,
+        data: dataUrl, uppladdad: new Date().toISOString()
+      } } })
+    });
+    if(!res.ok) throw new Error('http ' + res.status);
+    const p = state.ekonomiPoster.find(x => x.id === postId);
+    if(p){ p.bilaga = true; save(); scheduleEkonomiPush(); }
+    renderEkonomi();
+    toast('🧾 Fakturan är sparad');
+    return true;
+  }catch(e){
+    toast('Kunde inte spara bilden just nu — försök igen om en stund');
+    return false;
+  }
+}
+function visaBildOverlay(bilaga){
+  const div = document.createElement('div');
+  div.className = 'bild-overlay';
+  div.onclick = () => div.remove();
+  if(String(bilaga.typ).startsWith('image/')){
+    const img = document.createElement('img');
+    img.src = bilaga.data;
+    div.appendChild(img);
+  }
+  const namn = document.createElement('div');
+  namn.className = 'namn';
+  namn.textContent = (bilaga.namn || 'bilaga') + ' — tryck för att stänga';
+  div.appendChild(namn);
+  document.body.appendChild(div);
+}
 
 /* Tolkar exakt ett JSON-objekt ur AI-svaret, djup/strängmedveten. */
 function tolkaJSONObjekt(text){
@@ -810,10 +906,14 @@ function tolkaJSONObjekt(text){
 
 function ekoSystemPrompt(){
   const t = todayDate();
+  const profil = state.data && state.data.profil && state.data.profil.text;
   return 'Du är en ekonomiassistent i appen Assistenten, för en frilansande svensk kulturskribent.\n' +
     'Idag är ' + WDAYS[wIdx(t)] + ' ' + fmtDate(t) + '.\n\n' +
+    (profil ? 'Dina egna anteckningar om användaren (håll dem för dig själv):\n' + profil + '\n\n' : '') +
     'Nuvarande väntande poster (typ "in" = pengar som ska komma in, "ut" = pengar som ska betalas):\n' +
-    JSON.stringify(state.ekonomiPoster.map(p => ({ typ: p.typ, beskrivning: p.beskrivning, belopp: p.belopp, forfallodatum: p.forfallodatum }))) + '\n\n' +
+    JSON.stringify(ekoAktiva().map(p => ({ typ: p.typ, beskrivning: p.beskrivning, belopp: p.belopp, forfallodatum: p.forfallodatum }))) + '\n\n' +
+    'Nyligen avklarade poster (arkiv, för frågor om vad som redan är betalt/fakturerat):\n' +
+    JSON.stringify(ekoArkiv().slice(0, 20).map(p => ({ typ: p.typ, beskrivning: p.beskrivning, belopp: p.belopp, klar: String(p.klarNar || '').slice(0, 10) }))) + '\n\n' +
     'Kända kontosaldon:\n' + JSON.stringify(state.ekonomiSaldon) + '\n\n' +
     'Användaren berättar i vardagligt språk om fakturor, räkningar och saldon, eller ställer frågor om läget.\n' +
     'Svara ALLTID med exakt ett JSON-objekt och ingen annan text:\n' +
@@ -840,6 +940,9 @@ function ekoPostHtml(p){
     (nar ? '<div class="p-datum ' + nar.klass + '">' + esc(cap(nar.text)) + '</div>' : '') +
     '</div>' +
     '<span class="ep-belopp" style="color:' + farg + '">' + esc(formatKr(p.belopp)) + '</span>' +
+    (p.bilaga
+      ? '<button class="ep-bilaga" title="Visa fakturan" onclick="App.bilagaVisa(\'' + p.id + '\')">🧾</button>'
+      : '<button class="ep-bilaga" title="Lägg till foto på fakturan" onclick="App.bilagaValj(\'' + p.id + '\')">📎</button>') +
     '<button class="ep-klar" title="Markera som klar" onclick="App.ekoKlar(\'' + p.id + '\')">✓</button>' +
     '</div>';
 }
@@ -861,7 +964,7 @@ function renderEkonomi(){
     return;
   }
 
-  const sorterade = state.ekonomiPoster.slice()
+  const sorterade = ekoAktiva()
     .sort((a, b) => String(a.forfallodatum || '9999').localeCompare(String(b.forfallodatum || '9999')));
   const akuta = sorterade.filter(p => p.forfallodatum && dagarTill(p.forfallodatum) <= 1);
   const vecka = sorterade.filter(p => p.forfallodatum && dagarTill(p.forfallodatum) <= 7);
@@ -916,10 +1019,33 @@ function renderEkonomi(){
       '<input type="number" id="ekoBelopp" placeholder="Belopp" style="flex:1;min-width:110px">' +
       '<input type="date" id="ekoDatum" style="flex:1">' +
       '</div>' +
+      '<label class="small muted" style="cursor:pointer">📎 Foto eller PDF på fakturan (valfritt) ' +
+      '<input type="file" id="ekoFil" accept="image/*,application/pdf" style="display:block;margin-top:4px"></label>' +
+      '<p class="small dim" style="margin:0">Bilden sparas så länge posten är aktuell och raderas när den bockas av — uppgifterna arkiveras för alltid.</p>' +
       '<div class="knapprad">' +
       '<button class="btn" onclick="App.ekoNy()">Spara</button>' +
       '<button class="btn ghost" onclick="App.ekoVisaForm(false)">Avbryt</button>' +
       '</div></div></div>';
+  }
+
+  /* arkivet: avklarade poster sparas för alltid */
+  const arkiv = ekoArkiv();
+  if(arkiv.length){
+    html += '<div class="card" style="padding-top:10px;padding-bottom:10px">' +
+      '<p class="small muted" style="cursor:pointer" onclick="App.toggleEkoArkiv()">' +
+      (visaEkoArkiv ? '▾' : '▸') + ' Arkiv — ' + arkiv.length + ' avklarade</p>';
+    if(visaEkoArkiv){
+      for(const p of arkiv.slice(0, 60)){
+        html += '<div class="eko-post arkiv">' +
+          '<div class="ep-text">' + (p.typ === 'in' ? 'Fakturerade: ' : 'Betalade: ') + esc(p.beskrivning) +
+          (p.klarNar ? '<div class="p-datum">Klar ' + esc(String(p.klarNar).slice(0, 10)) + '</div>' : '') +
+          '</div>' +
+          '<span class="ep-belopp">' + esc(formatKr(p.belopp)) + '</span>' +
+          '<button class="p-bort" title="Radera ur arkivet" onclick="App.ekoArkivBort(\'' + p.id + '\')">✕</button>' +
+          '</div>';
+      }
+    }
+    html += '</div>';
   }
 
   /* chatten */
@@ -1134,9 +1260,12 @@ const App = {
     const beskr = document.getElementById('ekoBeskr').value.trim();
     const belopp = Number(document.getElementById('ekoBelopp').value);
     const datum = document.getElementById('ekoDatum').value || '';
+    const filEl = document.getElementById('ekoFil');
+    const fil = filEl && filEl.files && filEl.files[0];
     if(!beskr || !belopp || !datum){ toast('Fyll i beskrivning, belopp och datum'); return; }
+    const id = 'e' + Date.now() + Math.random().toString(36).slice(2, 5);
     state.ekonomiPoster.push({
-      id: 'e' + Date.now() + Math.random().toString(36).slice(2, 5),
+      id: id,
       typ: ekoForm.typ, beskrivning: beskr, belopp: belopp,
       forfallodatum: datum, status: 'väntar'
     });
@@ -1146,14 +1275,65 @@ const App = {
     renderEkonomi();
     renderIdag();
     toast('Noterat. 🖋');
+    if(fil) laddaUppBilaga(id, fil);
   },
   ekoKlar(id){
-    state.ekonomiPoster = state.ekonomiPoster.filter(p => p.id !== id);
+    const p = state.ekonomiPoster.find(x => x.id === id);
+    if(!p) return;
+    /* posten arkiveras för alltid — bara fakturabilden städas bort */
+    p.status = 'klar';
+    p.klarNar = new Date().toISOString();
+    if(p.bilaga){
+      p.bilaga = false;
+      fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kod: state.kod, radera_bilaga: id })
+      }).catch(() => {});
+    }
     save();
     scheduleEkonomiPush();
     renderEkonomi();
     renderIdag();
-    toast('Klart — struket ur listan');
+    toast('Klart — arkiverat 🗄');
+  },
+  ekoArkivBort(id){
+    if(!confirm('Radera posten ur arkivet, för alltid?')) return;
+    state.ekonomiPoster = state.ekonomiPoster.filter(p => p.id !== id);
+    save();
+    scheduleEkonomiPush();
+    renderEkonomi();
+  },
+  toggleEkoArkiv(){
+    visaEkoArkiv = !visaEkoArkiv;
+    renderEkonomi();
+  },
+  bilagaValj(id){
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = 'image/*,application/pdf';
+    inp.onchange = () => { if(inp.files && inp.files[0]) laddaUppBilaga(id, inp.files[0]); };
+    inp.click();
+  },
+  async bilagaVisa(id){
+    try{
+      const res = await fetch(API + '?kod=' + encodeURIComponent(state.kod) + '&bilaga=' + encodeURIComponent(id));
+      if(!res.ok) throw new Error('http ' + res.status);
+      const data = await res.json();
+      if(!data || !data.bilaga || !data.bilaga.data){ toast('Bilagan finns inte längre'); return; }
+      if(String(data.bilaga.typ) === 'application/pdf'){
+        /* pdf: öppna i egen flik via en blob-adress */
+        const delar = String(data.bilaga.data).split(',');
+        const bytes = atob(delar[1]);
+        const arr = new Uint8Array(bytes.length);
+        for(let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+        window.open(URL.createObjectURL(new Blob([arr], { type: 'application/pdf' })), '_blank');
+      } else {
+        visaBildOverlay(data.bilaga);
+      }
+    }catch(e){
+      toast('Kunde inte hämta bilagan just nu');
+    }
   },
   /* ---- prata med assistenten (förstasidan) ---- */
   async prataSkicka(viaRost){
@@ -1337,9 +1517,19 @@ const App = {
         save(); scheduleEkonomiPush();
       } else if(resultat.action === 'markera_klar' && resultat.matcha_beskrivning){
         const sok = String(resultat.matcha_beskrivning).toLowerCase();
-        const match = state.ekonomiPoster.find(p => String(p.beskrivning).toLowerCase().includes(sok));
+        const match = ekoAktiva().find(p => String(p.beskrivning).toLowerCase().includes(sok));
         if(match){
-          state.ekonomiPoster = state.ekonomiPoster.filter(p => p.id !== match.id);
+          /* arkivera för alltid — bara fakturabilden städas bort */
+          match.status = 'klar';
+          match.klarNar = new Date().toISOString();
+          if(match.bilaga){
+            match.bilaga = false;
+            fetch(API, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ kod: state.kod, radera_bilaga: match.id })
+            }).catch(() => {});
+          }
           save(); scheduleEkonomiPush();
         } else {
           extra = ' (Jag hittade ingen post som matchade, så inget ändrades.)';
