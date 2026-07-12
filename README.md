@@ -26,8 +26,11 @@ Koden ger tillgång till assistentens egna nycklar plus läskopior av jobbresor 
 - `assistent-poster` — `[{ id, omrade: barn|karriar|hushall|halsa, text, datum?, klar, skapad }]`
 - `assistent-mejl` — `{ uppdaterad, viktiga: [{fran, amne, sammanfattning}], obesvarade: [{fran, amne, dagar}], datumfynd: [{datum, text}] }`
 - `assistent-vardagskoll` — skrivs av Vardagskoll: `{ barn, barnDagar, middagar, aktiviteter, stad, inkopKvar, uppdaterad }`
-- `assistent-ekonomi-poster` — `[{ id, typ: in|ut, beskrivning, belopp, forfallodatum, status }]` (Ekonomi-fliken: fakturor och räkningar)
+- `assistent-ekonomi-poster` — `[{ id, typ: in|ut, beskrivning, belopp, forfallodatum, status, klarNar?, bilaga? }]` (Ekonomi-fliken; `status: "klar"` = arkiverad för alltid, aldrig raderad automatiskt)
 - `assistent-ekonomi-saldon` — `[{ konto, belopp, uppdaterad }]` (kända kontosaldon)
+- `assistent-bilaga-<postId>` — `{ namn, typ, data (dataURL), uppladdad }` — fakturafoton/PDF:er, komprimerade i webbläsaren; hämtas styckvis med `?bilaga=<postId>` och raderas (via `radera_bilaga`) när posten bockas av — bilden är färskvara, uppgifterna arkiveras för alltid
+- `assistent-profil` — `{ uppdaterad, text }` — assistentens egna anteckningar om Anna, skrivs av morgonjobbet och läses av chattarna; visas aldrig i appens gränssnitt
+- `assistent-samtal-ÅÅÅÅ-MM` — samtalsloggen per månad `[{ id, t, roll: jag|ass, kanal: prata|ekonomi, text }]`; skrivs via `logga`-operationen (dubblettskydd på id), raderas bara via `radera_samtal`
 
 Båda chattarna — "Prata med mig" på förstasidan och Ekonomi-flikens — skickar `POST { kod, ai: { system, messages } }` till samma API; servern vidarebefordrar till Anthropic och räknar anropet mot kontots dagliga AI-tak (delas med Skrivbordet).
 
