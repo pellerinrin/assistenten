@@ -276,6 +276,8 @@ let state = {
   ekonomiDirty: false,
   notified: {},
   visaKlara: false,
+  samtal: [],        /* samtalslogg från kontot (servern är source of truth) */
+  utkorg: [],        /* samtalsrader som ännu inte kvitterats av servern */
 };
 
 function load(){
@@ -285,7 +287,11 @@ function load(){
   }catch(e){ /* börja om från tomt */ }
 }
 function save(){
-  try{ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+  try{
+    /* hela historiken bor på kontot — lokalt räcker de senaste raderna */
+    if(state.samtal.length > 600) state.samtal = state.samtal.slice(-600);
+    localStorage.setItem(LS_KEY, JSON.stringify(state));
+  }
   catch(e){ toast('⚠️ Kunde inte spara lokalt'); }
 }
 
@@ -300,9 +306,10 @@ async function hamta(force){
   const btn = document.getElementById('refreshBtn');
   btn.classList.add('snurr');
   try{
-    /* osparade bevakningar/ekonomiposter åker upp först, så de inte skrivs över */
+    /* osparade bevakningar/ekonomiposter/samtal åker upp först, så inget skrivs över */
     if(state.posterDirty) await pushPoster();
     if(state.ekonomiDirty) await pushEkonomi();
+    if(state.utkorg.length) await pushLogg();
     const res = await fetch(API + '?kod=' + encodeURIComponent(state.kod));
     if(res.status === 404 || res.status === 400){
       toast('⚠️ Assistentkoden känns inte igen – kontrollera den under Profil i Skrivbordet');
@@ -315,6 +322,10 @@ async function hamta(force){
     if(!state.ekonomiDirty){
       state.ekonomiPoster = Array.isArray(state.data.ekonomiPoster) ? state.data.ekonomiPoster : [];
       state.ekonomiSaldon = Array.isArray(state.data.ekonomiSaldon) ? state.data.ekonomiSaldon : [];
+    }
+    if(Array.isArray(state.data.samtal)){
+      state.samtal = state.data.samtal;
+      delete state.data.samtal; /* ligger i state.samtal — ingen dubbellagring */
     }
     save();
     renderAll();
@@ -347,6 +358,49 @@ async function pushPoster(){
     save();
   }catch(e){
     /* försök igen vid nästa hämtning */
+  }
+}
+
+/* ---- samtalsloggen: allt som sägs mellan Anna och assistenten sparas på
+   kontot och försvinner aldrig (utom när Anna själv raderar det under Mer).
+   Nya rader väntar i utkorgen tills servern kvitterat dem, så inget tappas
+   även om nätet strular mitt i ett samtal. ---- */
+let loggTimer = null;
+function loggaMeddelande(kanal, roll, text){
+  state.utkorg.push({
+    id: 'm' + Date.now() + Math.random().toString(36).slice(2, 7),
+    t: new Date().toISOString(),
+    roll: roll,
+    kanal: kanal,
+    text: String(text)
+  });
+  save();
+  clearTimeout(loggTimer);
+  loggTimer = setTimeout(pushLogg, 800);
+}
+function kanalMeddelanden(kanal){
+  return state.samtal.filter(m => m.kanal === kanal)
+    .concat(state.utkorg.filter(m => m.kanal === kanal))
+    .sort((a, b) => String(a.t).localeCompare(String(b.t)));
+}
+async function pushLogg(){
+  if(!state.kod || !state.utkorg.length) return;
+  const batch = state.utkorg.slice(0, 100);
+  try{
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kod: state.kod, logga: batch })
+    });
+    if(!res.ok) throw new Error('http ' + res.status);
+    const data = await res.json().catch(() => null);
+    const sparade = new Set((data && data.sparade) || batch.map(m => m.id));
+    state.samtal = state.samtal.concat(state.utkorg.filter(m => sparade.has(m.id)));
+    state.utkorg = state.utkorg.filter(m => !sparade.has(m.id));
+    save();
+    if(state.utkorg.length){ clearTimeout(loggTimer); loggTimer = setTimeout(pushLogg, 800); }
+  }catch(e){
+    /* raderna ligger kvar i utkorgen och skickas om vid nästa försök */
   }
 }
 
@@ -458,11 +512,16 @@ function renderIdag(){
   }
 
   /* ---- prata med assistenten ---- */
+  const prataAlla = kanalMeddelanden('prata');
+  const prataVisas = visaHelaHistoriken ? prataAlla : prataAlla.slice(-40);
   html += '<div class="card"><h2>🖋 Prata med mig</h2>' +
     '<div class="chatt" id="prataChatt">' +
-    prataChat.map((m, i) =>
+    (prataAlla.length > prataVisas.length ?
+      '<button class="btn small ghost" style="align-self:center" onclick="App.visaAldre()">Visa äldre (' + (prataAlla.length - prataVisas.length) + ' till)</button>' : '') +
+    (prataVisas.length ? '' : '<div class="bubbla ass">' + esc(HALSNING_PRATA) + '</div>') +
+    prataVisas.map(m =>
       '<div class="bubbla ' + (m.roll === 'jag' ? 'jag' : 'ass') + '">' + esc(m.text) +
-      (m.roll === 'ass' && KAN_TALA ? ' <button class="las-upp" title="Läs upp" onclick="App.lasUpp(' + i + ')">🔊</button>' : '') +
+      (m.roll === 'ass' && KAN_TALA ? ' <button class="las-upp" title="Läs upp" onclick="App.lasUpp(\'' + m.id + '\')">🔊</button>' : '') +
       '</div>').join('') +
     (prataSkickar ? '<div class="bubbla ass dim">skriver…</div>' : '') +
     '</div>' +
@@ -638,7 +697,8 @@ function renderBevaka(){
 const KAN_LYSSNA = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
 const KAN_TALA = 'speechSynthesis' in window;
 
-let prataChat = [{ roll: 'ass', text: 'Hej! Fråga mig om dagen — barnen, mejlen, pengarna, skrivandet — eller be mig komma ihåg något åt dig.' }];
+const HALSNING_PRATA = 'Hej! Fråga mig om dagen — barnen, mejlen, pengarna, skrivandet — eller be mig komma ihåg något åt dig.';
+let visaHelaHistoriken = false;
 let prataSkickar = false;
 let rostAktiv = false;
 let rostIgang = null;
@@ -716,7 +776,7 @@ function prataSystemPrompt(){
 /* ================= Ekonomi ================= */
 /* Chatten hålls i minnet (nollställs när appen laddas om) — själva
    posterna och saldona synkas till kontot via assistent-ekonomi-nycklarna. */
-let ekonomiChat = [{ roll: 'ass', text: 'Hej! Säg till när en faktura eller räkning dyker upp, eller fråga hur läget ser ut.' }];
+const HALSNING_EKONOMI = 'Hej! Säg till när en faktura eller räkning dyker upp, eller fråga hur läget ser ut.';
 let ekonomiSkickar = false;
 let ekoForm = { open: false, typ: 'ut' };
 
@@ -863,9 +923,11 @@ function renderEkonomi(){
   }
 
   /* chatten */
+  const ekoMedd = kanalMeddelanden('ekonomi').slice(-40);
   html += '<div class="card"><h2>🖋 Fråga assistenten</h2>' +
     '<div class="chatt" id="ekoChatt">' +
-    ekonomiChat.map(m => '<div class="bubbla ' + (m.roll === 'jag' ? 'jag' : 'ass') + '">' +
+    (ekoMedd.length ? '' : '<div class="bubbla ass">' + esc(HALSNING_EKONOMI) + '</div>') +
+    ekoMedd.map(m => '<div class="bubbla ' + (m.roll === 'jag' ? 'jag' : 'ass') + '">' +
       esc(m.text).replace(/\n/g, '<br>') + '</div>').join('') +
     (ekonomiSkickar ? '<div class="small dim" style="padding:0 4px">skriver …</div>' : '') +
     '</div>' +
@@ -961,6 +1023,14 @@ function renderMer(){
       '<div class="knapprad"><button class="btn small" onclick="App.notiserPa()">Sätt på notiser</button></div>';
   }
   html += '</div>';
+
+  /* samtalshistorik */
+  const antalSamtal = state.samtal.length + state.utkorg.length;
+  html += '<div class="card"><h2>🗄 Samtalshistorik</h2>' +
+    '<p class="small muted">Allt du och assistenten säger till varandra sparas på ditt konto och försvinner aldrig — det är så assistenten lär känna dina behov över tid. ' +
+    (antalSamtal ? antalSamtal + (antalSamtal === 1 ? ' rad' : ' rader') + ' i det laddade minnet.' : 'Inga samtal sparade ännu.') +
+    (state.utkorg.length ? ' (' + state.utkorg.length + ' väntar på att skickas upp.)' : '') + '</p>' +
+    '<div class="knapprad"><button class="btn small danger" onclick="App.raderaSamtal()">Radera hela historiken</button></div></div>';
 
   /* installera */
   html += '<div class="card"><h2>📱 Lägg till på hemskärmen</h2>' +
@@ -1091,7 +1161,7 @@ const App = {
     const text = ((el && el.value) || '').trim();
     if(!text || prataSkickar) return;
     if(el) el.value = '';
-    prataChat.push({ roll: 'jag', text: text });
+    loggaMeddelande('prata', 'jag', text);
     prataSkickar = true;
     renderIdag();
     try{
@@ -1100,7 +1170,7 @@ const App = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ kod: state.kod, ai: {
           system: prataSystemPrompt(),
-          messages: prataChat.slice(-12).map(m => ({
+          messages: kanalMeddelanden('prata').slice(-16).map(m => ({
             role: m.roll === 'jag' ? 'user' : 'assistant',
             content: m.text
           }))
@@ -1108,13 +1178,13 @@ const App = {
       });
       const data = await res.json().catch(() => null);
       if(res.status === 429){
-        prataChat.push({ roll: 'ass', text: (data && data.message) || 'Dagens AI-gräns är nådd — vi fortsätter imorgon.' });
+        loggaMeddelande('prata', 'ass', (data && data.message) || 'Dagens AI-gräns är nådd — vi fortsätter imorgon.');
         return;
       }
       if(!res.ok || !data || !data.text) throw new Error('http ' + res.status);
       const resultat = tolkaJSONObjekt(data.text);
       if(!resultat || !resultat.svar){
-        prataChat.push({ roll: 'ass', text: 'Något gick fel — kan du försöka igen?' });
+        loggaMeddelande('prata', 'ass', 'Något gick fel — kan du försöka igen?');
         return;
       }
       let extra = '';
@@ -1139,10 +1209,10 @@ const App = {
           extra = ' (Jag hittade ingen bevakning som matchade, så inget bockades av.)';
         }
       }
-      prataChat.push({ roll: 'ass', text: resultat.svar + extra });
+      loggaMeddelande('prata', 'ass', resultat.svar + extra);
       if(viaRost) talUpp(resultat.svar);
     }catch(e){
-      prataChat.push({ roll: 'ass', text: 'Jag kom inte fram till kontoret just nu — försök igen om en stund.' });
+      loggaMeddelande('prata', 'ass', 'Jag kom inte fram till kontoret just nu — försök igen om en stund.');
     }finally{
       prataSkickar = false;
       renderIdag();
@@ -1189,16 +1259,38 @@ const App = {
       if(b) b.classList.add('lyssnar');
     }catch(e){ rostAktiv = false; }
   },
-  lasUpp(i){
-    const m = prataChat[i];
+  lasUpp(id){
+    const m = state.samtal.find(x => x.id === id) || state.utkorg.find(x => x.id === id);
     if(m) talUpp(m.text);
+  },
+  visaAldre(){
+    visaHelaHistoriken = true;
+    renderIdag();
+  },
+  async raderaSamtal(){
+    if(!confirm('Radera hela samtalshistoriken, för alltid? Assistenten glömmer allt ni sagt till varandra.')) return;
+    try{
+      const res = await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kod: state.kod, radera_samtal: true })
+      });
+      if(!res.ok) throw new Error('http ' + res.status);
+      state.samtal = [];
+      state.utkorg = [];
+      save();
+      renderAll();
+      toast('Historiken är raderad');
+    }catch(e){
+      toast('Kunde inte radera just nu — försök igen om en stund');
+    }
   },
 
   async ekoSkicka(){
     const el = document.getElementById('ekoChatInput');
     const text = ((el && el.value) || '').trim();
     if(!text || ekonomiSkickar) return;
-    ekonomiChat.push({ roll: 'jag', text: text });
+    loggaMeddelande('ekonomi', 'jag', text);
     ekonomiSkickar = true;
     renderEkonomi();
     try{
@@ -1207,7 +1299,7 @@ const App = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ kod: state.kod, ai: {
           system: ekoSystemPrompt(),
-          messages: ekonomiChat.slice(-12).map(m => ({
+          messages: kanalMeddelanden('ekonomi').slice(-12).map(m => ({
             role: m.roll === 'jag' ? 'user' : 'assistant',
             content: m.text
           }))
@@ -1215,13 +1307,13 @@ const App = {
       });
       const data = await res.json().catch(() => null);
       if(res.status === 429){
-        ekonomiChat.push({ roll: 'ass', text: (data && data.message) || 'Dagens AI-gräns är nådd — vi fortsätter imorgon.' });
+        loggaMeddelande('ekonomi', 'ass', (data && data.message) || 'Dagens AI-gräns är nådd — vi fortsätter imorgon.');
         return;
       }
       if(!res.ok || !data || !data.text) throw new Error('http ' + res.status);
       const resultat = tolkaJSONObjekt(data.text);
       if(!resultat || !resultat.svar){
-        ekonomiChat.push({ roll: 'ass', text: 'Något gick fel — kan du försöka igen?' });
+        loggaMeddelande('ekonomi', 'ass', 'Något gick fel — kan du försöka igen?');
         return;
       }
       let extra = '';
@@ -1253,9 +1345,9 @@ const App = {
           extra = ' (Jag hittade ingen post som matchade, så inget ändrades.)';
         }
       }
-      ekonomiChat.push({ roll: 'ass', text: resultat.svar + extra });
+      loggaMeddelande('ekonomi', 'ass', resultat.svar + extra);
     }catch(e){
-      ekonomiChat.push({ roll: 'ass', text: 'Något gick fel — kan du försöka igen?' });
+      loggaMeddelande('ekonomi', 'ass', 'Något gick fel — kan du försöka igen?');
     }finally{
       ekonomiSkickar = false;
       renderEkonomi();
