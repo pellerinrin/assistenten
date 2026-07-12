@@ -98,7 +98,7 @@ main{max-width:560px; margin:0 auto; padding:10px 14px 24px}
 .ny-form{display:flex; flex-direction:column; gap:8px}
 .ny-form input[type=text]{width:100%}
 .ny-rad2{display:flex; gap:8px; flex-wrap:wrap}
-input[type=text],input[type=date],select{
+input[type=text],input[type=date],input[type=number],select{
   border:1px solid var(--line); border-radius:10px; padding:9px 11px; font-size:15px;
   background:#fff; color:var(--ink); font-family:inherit;
 }
@@ -111,6 +111,29 @@ input:focus,select:focus{outline:none; border-color:var(--bronze)}
 .mejl-item .m-amne{font-weight:600}
 .mejl-item .m-fran{font-size:12.5px; color:var(--ink-dim)}
 .mejl-item .m-sammanfattning{font-size:14px; color:var(--ink-soft); margin-top:2px}
+
+/* ---- ekonomi ---- */
+.eko-grid{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:14px}
+.eko-summa{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 11px; box-shadow:var(--shadow)}
+.eko-summa .es-etikett{font-size:11.5px; color:var(--ink-soft); margin-bottom:2px}
+.eko-summa .es-belopp{font-family:Georgia,serif; font-weight:600; font-size:15.5px; white-space:nowrap}
+.card.akut{background:var(--terra); border-color:var(--terra); color:#fff}
+.card.akut h2{color:#fff}
+.eko-post{display:flex; gap:10px; align-items:center; padding:9px 2px; border-top:1px solid var(--line-soft)}
+.eko-post:first-of-type{border-top:none}
+.eko-post .ep-text{flex:1; min-width:0; font-size:14.5px}
+.eko-post .ep-belopp{font-family:Georgia,serif; font-weight:600; white-space:nowrap; font-size:14.5px}
+.eko-post .ep-klar{border:1px solid var(--green); background:none; color:var(--green); border-radius:8px; width:30px; height:30px; cursor:pointer; flex:none; font-size:15px}
+.typvalj{display:flex; gap:8px}
+.typvalj button{flex:1; border-radius:10px; padding:8px; font-size:14px; cursor:pointer; border:1px solid var(--line); background:#fff; color:var(--ink-soft)}
+.typvalj button.vald-in{border-color:var(--blue); background:var(--blue); color:#fff}
+.typvalj button.vald-ut{border-color:var(--terra); background:var(--terra); color:#fff}
+.chatt{display:flex; flex-direction:column; gap:8px; max-height:320px; overflow-y:auto; padding:4px 0; margin:8px 0}
+.bubbla{max-width:82%; border-radius:12px; padding:8px 12px; font-size:14.5px; line-height:1.45}
+.bubbla.jag{align-self:flex-end; background:var(--green); color:#fdfbf4}
+.bubbla.ass{align-self:flex-start; background:var(--paper); border:1px solid var(--line)}
+.chatt-form{display:flex; gap:8px}
+.chatt-form input{flex:1; min-width:0}
 
 /* ---- knappar ---- */
 .btn{
@@ -163,6 +186,7 @@ input:focus,select:focus{outline:none; border-color:var(--bronze)}
 <main>
   <div id="view-idag" class="view"></div>
   <div id="view-bevaka" class="view"></div>
+  <div id="view-ekonomi" class="view"></div>
   <div id="view-mejl" class="view"></div>
   <div id="view-mer" class="view"></div>
 </main>
@@ -170,6 +194,7 @@ input:focus,select:focus{outline:none; border-color:var(--bronze)}
 <nav class="tabs">
   <button id="tab-idag" onclick="App.go('idag')">☕<span>Idag</span></button>
   <button id="tab-bevaka" onclick="App.go('bevaka')">🗒️<span>Bevaka</span></button>
+  <button id="tab-ekonomi" onclick="App.go('ekonomi')">💰<span>Ekonomi</span></button>
   <button id="tab-mejl" onclick="App.go('mejl')">✉️<span>Mejl</span></button>
   <button id="tab-mer" onclick="App.go('mer')">⚙️<span>Mer</span></button>
 </nav>
@@ -206,6 +231,7 @@ function narText(ds){
   const d = parseDate(ds);
   return { text: d.getDate()+' '+MONTHS[d.getMonth()], klass: '' };
 }
+function formatKr(n){ return new Intl.NumberFormat('sv-SE').format(Number(n) || 0) + ' kr'; }
 function esc(s){
   return String(s == null ? '' : s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -237,6 +263,9 @@ let state = {
   dataTid: 0,
   poster: [],        /* lokal spegel av bevakningarna (source of truth är kontot) */
   posterDirty: false,
+  ekonomiPoster: [], /* lokal spegel av ekonomiposterna (in/ut med förfallodatum) */
+  ekonomiSaldon: [], /* kända kontosaldon: [{konto, belopp, uppdaterad}] */
+  ekonomiDirty: false,
   notified: {},
   visaKlara: false,
 };
@@ -263,8 +292,9 @@ async function hamta(force){
   const btn = document.getElementById('refreshBtn');
   btn.classList.add('snurr');
   try{
-    /* osparade bevakningar åker upp först, så de inte skrivs över */
+    /* osparade bevakningar/ekonomiposter åker upp först, så de inte skrivs över */
     if(state.posterDirty) await pushPoster();
+    if(state.ekonomiDirty) await pushEkonomi();
     const res = await fetch(API + '?kod=' + encodeURIComponent(state.kod));
     if(res.status === 404 || res.status === 400){
       toast('⚠️ Assistentkoden känns inte igen – kontrollera den under Profil i Skrivbordet');
@@ -274,6 +304,10 @@ async function hamta(force){
     state.data = await res.json() || {};
     state.dataTid = Date.now();
     if(!state.posterDirty) state.poster = Array.isArray(state.data.poster) ? state.data.poster : [];
+    if(!state.ekonomiDirty){
+      state.ekonomiPoster = Array.isArray(state.data.ekonomiPoster) ? state.data.ekonomiPoster : [];
+      state.ekonomiSaldon = Array.isArray(state.data.ekonomiSaldon) ? state.data.ekonomiSaldon : [];
+    }
     save();
     renderAll();
     checkNotiser();
@@ -308,6 +342,32 @@ async function pushPoster(){
   }
 }
 
+let ekonomiTimer = null;
+function scheduleEkonomiPush(){
+  state.ekonomiDirty = true;
+  save();
+  clearTimeout(ekonomiTimer);
+  ekonomiTimer = setTimeout(pushEkonomi, 1200);
+}
+async function pushEkonomi(){
+  if(!state.kod) return;
+  try{
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kod: state.kod, skriv: {
+        'assistent-ekonomi-poster': state.ekonomiPoster,
+        'assistent-ekonomi-saldon': state.ekonomiSaldon
+      } })
+    });
+    if(!res.ok) throw new Error('http ' + res.status);
+    state.ekonomiDirty = false;
+    save();
+  }catch(e){
+    /* försök igen vid nästa hämtning */
+  }
+}
+
 /* ================= Notiser (medan appen är öppen) ================= */
 function notiserPa(){ return ('Notification' in window) && Notification.permission === 'granted'; }
 function fireNotis(title, body, key){
@@ -333,6 +393,14 @@ function checkNotiser(){
     const n = dagarTill(p.datum);
     if(n === 1) once('p-' + p.id + '-1', () => fireNotis('Assistenten 🗒️', 'Imorgon: ' + p.text, 'p-' + p.id));
     if(n === 0) once('p-' + p.id + '-0', () => fireNotis('Assistenten 🗒️', 'Idag: ' + p.text, 'p-' + p.id));
+  }
+  /* ekonomiposter som förfaller imorgon eller idag */
+  for(const p of state.ekonomiPoster){
+    if(!p.forfallodatum) continue;
+    const n = dagarTill(p.forfallodatum);
+    const vad = (p.typ === 'in' ? 'Fakturera ' : 'Betala ') + p.beskrivning + ' (' + formatKr(p.belopp) + ')';
+    if(n === 1) once('e-' + p.id + '-1', () => fireNotis('Assistenten 💰', 'Imorgon: ' + vad, 'e-' + p.id));
+    if(n === 0) once('e-' + p.id + '-0', () => fireNotis('Assistenten 💰', 'Idag: ' + vad, 'e-' + p.id));
   }
   /* datum som assistenten hittat i mejlen */
   const fynd = (state.data.mejl && state.data.mejl.datumfynd) || [];
@@ -454,6 +522,11 @@ function renderIdag(){
     if(!f.datum || dagarTill(f.datum) < 0 || dagarTill(f.datum) > 14) continue;
     bevakning.push({ datum: f.datum, emoji: '✉️', text: esc(f.text) });
   }
+  for(const p of state.ekonomiPoster){
+    if(!p.forfallodatum || dagarTill(p.forfallodatum) > 10) continue;
+    bevakning.push({ datum: p.forfallodatum, emoji: '💰',
+      text: esc((p.typ === 'in' ? 'Fakturera: ' : 'Betala: ') + p.beskrivning + ' — ' + formatKr(p.belopp)) });
+  }
   bevakning.sort((a,b) => a.datum.localeCompare(b.datum));
   if(bevakning.length){
     html += '<div class="card"><h2>Att hålla ögonen på</h2>';
@@ -520,6 +593,173 @@ function renderBevaka(){
   }
 
   document.getElementById('view-bevaka').innerHTML = html;
+}
+
+/* ================= Ekonomi ================= */
+/* Chatten hålls i minnet (nollställs när appen laddas om) — själva
+   posterna och saldona synkas till kontot via assistent-ekonomi-nycklarna. */
+let ekonomiChat = [{ roll: 'ass', text: 'Hej! Säg till när en faktura eller räkning dyker upp, eller fråga hur läget ser ut.' }];
+let ekonomiSkickar = false;
+let ekoForm = { open: false, typ: 'ut' };
+
+/* Tolkar exakt ett JSON-objekt ur AI-svaret, djup/strängmedveten. */
+function tolkaJSONObjekt(text){
+  if(!text) return null;
+  const t = String(text).replace(/```json/gi, '').replace(/```/g, '');
+  let depth = 0, start = -1, inStr = false, escd = false;
+  for(let i = 0; i < t.length; i++){
+    const ch = t[i];
+    if(inStr){
+      if(escd) escd = false;
+      else if(ch === '\\') escd = true;
+      else if(ch === '"') inStr = false;
+      continue;
+    }
+    if(ch === '"') inStr = true;
+    else if(ch === '{'){
+      if(depth === 0) start = i;
+      depth++;
+    } else if(ch === '}'){
+      depth--;
+      if(depth === 0 && start !== -1){
+        try{ return JSON.parse(t.slice(start, i + 1)); }
+        catch(e){ start = -1; }
+      }
+    }
+  }
+  return null;
+}
+
+function ekoSystemPrompt(){
+  const t = todayDate();
+  return 'Du är en ekonomiassistent i appen Assistenten, för en frilansande svensk kulturskribent.\n' +
+    'Idag är ' + WDAYS[wIdx(t)] + ' ' + fmtDate(t) + '.\n\n' +
+    'Nuvarande väntande poster (typ "in" = pengar som ska komma in, "ut" = pengar som ska betalas):\n' +
+    JSON.stringify(state.ekonomiPoster.map(p => ({ typ: p.typ, beskrivning: p.beskrivning, belopp: p.belopp, forfallodatum: p.forfallodatum }))) + '\n\n' +
+    'Kända kontosaldon:\n' + JSON.stringify(state.ekonomiSaldon) + '\n\n' +
+    'Användaren berättar i vardagligt språk om fakturor, räkningar och saldon, eller ställer frågor om läget.\n' +
+    'Svara ALLTID med exakt ett JSON-objekt och ingen annan text:\n' +
+    '{\n' +
+    '  "svar": "kort, vänligt svar på svenska",\n' +
+    '  "action": "ny_post" | "uppdatera_saldo" | "markera_klar" | null,\n' +
+    '  "post": { "typ": "in" | "ut", "beskrivning": "...", "belopp": tal, "forfallodatum": "ÅÅÅÅ-MM-DD" },\n' +
+    '  "saldo": { "konto": "...", "belopp": tal },\n' +
+    '  "matcha_beskrivning": "..."\n' +
+    '}\n' +
+    'Regler:\n' +
+    '- "post" bara vid action "ny_post", "saldo" bara vid "uppdatera_saldo", "matcha_beskrivning" bara vid "markera_klar" (ordagrann del av den befintliga postens beskrivning).\n' +
+    '- Tolka relativa datum (imorgon, på fredag, nästa vecka) utifrån dagens datum.\n' +
+    '- Belopp anges som rent tal i kronor, utan tusentalsavgränsare.\n' +
+    '- Om något saknas eller är oklart (belopp, datum): sätt "action" till null och ställ en kort följdfråga i "svar".\n' +
+    '- Vid frågor om läget: räkna på posterna ovan och sammanfatta i "svar", "action" null.';
+}
+
+function ekoPostHtml(p){
+  const nar = p.forfallodatum ? narText(p.forfallodatum) : null;
+  const farg = p.typ === 'in' ? 'var(--blue)' : 'var(--terra)';
+  return '<div class="eko-post">' +
+    '<div class="ep-text">' + (p.typ === 'in' ? 'Fakturera: ' : 'Betala: ') + esc(p.beskrivning) +
+    (nar ? '<div class="p-datum ' + nar.klass + '">' + esc(cap(nar.text)) + '</div>' : '') +
+    '</div>' +
+    '<span class="ep-belopp" style="color:' + farg + '">' + esc(formatKr(p.belopp)) + '</span>' +
+    '<button class="ep-klar" title="Markera som klar" onclick="App.ekoKlar(\'' + p.id + '\')">✓</button>' +
+    '</div>';
+}
+
+function ekoSektion(titel, lista, tom){
+  let html = '<div class="card"><h2>' + titel + '</h2>';
+  if(!lista.length) html += '<p class="small muted"><i>' + tom + '</i></p>';
+  else for(const p of lista) html += ekoPostHtml(p);
+  return html + '</div>';
+}
+
+function renderEkonomi(){
+  const el = document.getElementById('view-ekonomi');
+  if(!state.kod){
+    el.innerHTML = '<div class="card"><h2>💰 Ekonomi</h2>' +
+      '<p class="small muted">Här håller jag koll på vad som ska in och ut — fakturor, räkningar och saldon. ' +
+      'Koppla appen med din assistentkod först, så sätter vi igång.</p>' +
+      '<div class="knapprad"><button class="btn" onclick="App.go(\'mer\')">Till inställningarna</button></div></div>';
+    return;
+  }
+
+  const sorterade = state.ekonomiPoster.slice()
+    .sort((a, b) => String(a.forfallodatum || '9999').localeCompare(String(b.forfallodatum || '9999')));
+  const akuta = sorterade.filter(p => p.forfallodatum && dagarTill(p.forfallodatum) <= 1);
+  const vecka = sorterade.filter(p => p.forfallodatum && dagarTill(p.forfallodatum) <= 7);
+  const kommande = sorterade.filter(p => !p.forfallodatum || dagarTill(p.forfallodatum) > 7);
+  const summaIn = vecka.filter(p => p.typ === 'in').reduce((s, p) => s + (Number(p.belopp) || 0), 0);
+  const summaUt = vecka.filter(p => p.typ !== 'in').reduce((s, p) => s + (Number(p.belopp) || 0), 0);
+  const netto = summaIn - summaUt;
+
+  let html = '';
+
+  if(akuta.length){
+    html += '<div class="card akut"><h2>⏰ Brådskar</h2>';
+    for(const p of akuta){
+      const nar = narText(p.forfallodatum);
+      html += '<div class="rad" style="border-color:rgba(255,255,255,.25)"><span class="r-emoji">' +
+        (p.typ === 'in' ? '📮' : '💸') + '</span><span class="r-text">' +
+        (p.typ === 'ut'
+          ? 'Betala ' + esc(formatKr(p.belopp)) + ' till ' + esc(p.beskrivning)
+          : 'Fakturera ' + esc(p.beskrivning) + ' (' + esc(formatKr(p.belopp)) + ')') +
+        ' — ' + esc(nar.text) + '</span></div>';
+    }
+    html += '</div>';
+  }
+
+  html += '<div class="eko-grid">' +
+    '<div class="eko-summa"><div class="es-etikett">In denna vecka</div><div class="es-belopp" style="color:var(--blue)">' + esc(formatKr(summaIn)) + '</div></div>' +
+    '<div class="eko-summa"><div class="es-etikett">Ut denna vecka</div><div class="es-belopp" style="color:var(--terra)">' + esc(formatKr(summaUt)) + '</div></div>' +
+    '<div class="eko-summa"><div class="es-etikett">Netto</div><div class="es-belopp" style="color:' + (netto >= 0 ? 'var(--green)' : 'var(--red)') + '">' + (netto < 0 ? '−' : '') + esc(formatKr(Math.abs(netto))) + '</div></div>' +
+    '</div>';
+
+  if(state.ekonomiSaldon.length){
+    html += '<p class="small muted" style="margin:-6px 2px 12px">' +
+      state.ekonomiSaldon.map(s => esc(s.konto) + ': <b>' + esc(formatKr(s.belopp)) + '</b>' +
+        (s.uppdaterad ? ' <span class="dim">(' + esc(s.uppdaterad) + ')</span>' : '')).join(' · ') +
+      '</p>';
+  }
+
+  html += ekoSektion('Denna vecka', vecka, 'Inget som förfaller inom 7 dagar.');
+  html += ekoSektion('Kommande', kommande, 'Inget planerat längre fram ännu.');
+
+  /* lägg till manuellt */
+  if(!ekoForm.open){
+    html += '<div class="knapprad" style="margin:0 0 14px"><button class="btn ghost" onclick="App.ekoVisaForm(true)">+ Lägg till post</button></div>';
+  } else {
+    html += '<div class="card"><h2>Ny post</h2><div class="ny-form">' +
+      '<div class="typvalj">' +
+      '<button id="ekoTypIn" class="' + (ekoForm.typ === 'in' ? 'vald-in' : '') + '" onclick="App.ekoTyp(\'in\')">📮 Inkommande</button>' +
+      '<button id="ekoTypUt" class="' + (ekoForm.typ === 'ut' ? 'vald-ut' : '') + '" onclick="App.ekoTyp(\'ut\')">💸 Utgående</button>' +
+      '</div>' +
+      '<input type="text" id="ekoBeskr" placeholder="Beskrivning (t.ex. Kvartal juli, elräkningen)">' +
+      '<div class="ny-rad2">' +
+      '<input type="number" id="ekoBelopp" placeholder="Belopp" style="flex:1;min-width:110px">' +
+      '<input type="date" id="ekoDatum" style="flex:1">' +
+      '</div>' +
+      '<div class="knapprad">' +
+      '<button class="btn" onclick="App.ekoNy()">Spara</button>' +
+      '<button class="btn ghost" onclick="App.ekoVisaForm(false)">Avbryt</button>' +
+      '</div></div></div>';
+  }
+
+  /* chatten */
+  html += '<div class="card"><h2>🖋 Fråga assistenten</h2>' +
+    '<div class="chatt" id="ekoChatt">' +
+    ekonomiChat.map(m => '<div class="bubbla ' + (m.roll === 'jag' ? 'jag' : 'ass') + '">' +
+      esc(m.text).replace(/\n/g, '<br>') + '</div>').join('') +
+    (ekonomiSkickar ? '<div class="small dim" style="padding:0 4px">skriver …</div>' : '') +
+    '</div>' +
+    '<div class="chatt-form">' +
+    '<input type="text" id="ekoChatInput" placeholder="T.ex. &quot;Kvartal fakturerar 50000, klar imorgon&quot;" ' +
+    'onkeydown="if(event.key===\'Enter\')App.ekoSkicka()"' + (ekonomiSkickar ? ' disabled' : '') + '>' +
+    '<button class="btn" onclick="App.ekoSkicka()"' + (ekonomiSkickar ? ' disabled' : '') + '>Skicka</button>' +
+    '</div></div>';
+
+  el.innerHTML = html;
+  const chatt = document.getElementById('ekoChatt');
+  if(chatt) chatt.scrollTop = chatt.scrollHeight;
 }
 
 function renderMejl(){
@@ -627,6 +867,7 @@ function renderAll(){
   renderTopp();
   renderIdag();
   renderBevaka();
+  renderEkonomi();
   renderMejl();
   renderMer();
 }
@@ -636,7 +877,7 @@ const App = {
   tab: 'idag',
   go(tab){
     this.tab = tab;
-    for(const t of ['idag','bevaka','mejl','mer']){
+    for(const t of ['idag','bevaka','ekonomi','mejl','mer']){
       document.getElementById('view-' + t).classList.toggle('open', t === tab);
       document.getElementById('tab-' + t).classList.toggle('aktiv', t === tab);
     }
@@ -687,6 +928,114 @@ const App = {
     schedulePosterPush();
     renderBevaka();
     toast('Avklarade bevakningar rensade');
+  },
+
+  /* ---- ekonomi ---- */
+  ekoVisaForm(open){
+    ekoForm.open = open;
+    renderEkonomi();
+    if(open){ const el = document.getElementById('ekoBeskr'); if(el) el.focus(); }
+  },
+  ekoTyp(typ){
+    ekoForm.typ = typ;
+    /* byt bara knapparnas utseende — ingen omritning, så inmatningen står kvar */
+    document.getElementById('ekoTypIn').className = typ === 'in' ? 'vald-in' : '';
+    document.getElementById('ekoTypUt').className = typ === 'ut' ? 'vald-ut' : '';
+  },
+  ekoNy(){
+    const beskr = document.getElementById('ekoBeskr').value.trim();
+    const belopp = Number(document.getElementById('ekoBelopp').value);
+    const datum = document.getElementById('ekoDatum').value || '';
+    if(!beskr || !belopp || !datum){ toast('Fyll i beskrivning, belopp och datum'); return; }
+    state.ekonomiPoster.push({
+      id: 'e' + Date.now() + Math.random().toString(36).slice(2, 5),
+      typ: ekoForm.typ, beskrivning: beskr, belopp: belopp,
+      forfallodatum: datum, status: 'väntar'
+    });
+    ekoForm.open = false;
+    save();
+    scheduleEkonomiPush();
+    renderEkonomi();
+    renderIdag();
+    toast('Noterat. 🖋');
+  },
+  ekoKlar(id){
+    state.ekonomiPoster = state.ekonomiPoster.filter(p => p.id !== id);
+    save();
+    scheduleEkonomiPush();
+    renderEkonomi();
+    renderIdag();
+    toast('Klart — struket ur listan');
+  },
+  async ekoSkicka(){
+    const el = document.getElementById('ekoChatInput');
+    const text = ((el && el.value) || '').trim();
+    if(!text || ekonomiSkickar) return;
+    ekonomiChat.push({ roll: 'jag', text: text });
+    ekonomiSkickar = true;
+    renderEkonomi();
+    try{
+      const res = await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kod: state.kod, ai: {
+          system: ekoSystemPrompt(),
+          messages: ekonomiChat.slice(-12).map(m => ({
+            role: m.roll === 'jag' ? 'user' : 'assistant',
+            content: m.text
+          }))
+        } })
+      });
+      const data = await res.json().catch(() => null);
+      if(res.status === 429){
+        ekonomiChat.push({ roll: 'ass', text: (data && data.message) || 'Dagens AI-gräns är nådd — vi fortsätter imorgon.' });
+        return;
+      }
+      if(!res.ok || !data || !data.text) throw new Error('http ' + res.status);
+      const resultat = tolkaJSONObjekt(data.text);
+      if(!resultat || !resultat.svar){
+        ekonomiChat.push({ roll: 'ass', text: 'Något gick fel — kan du försöka igen?' });
+        return;
+      }
+      let extra = '';
+      if(resultat.action === 'ny_post' && resultat.post && resultat.post.beskrivning && resultat.post.forfallodatum){
+        state.ekonomiPoster.push({
+          id: 'e' + Date.now() + Math.random().toString(36).slice(2, 5),
+          typ: resultat.post.typ === 'in' ? 'in' : 'ut',
+          beskrivning: String(resultat.post.beskrivning),
+          belopp: Number(resultat.post.belopp) || 0,
+          forfallodatum: String(resultat.post.forfallodatum),
+          status: 'väntar'
+        });
+        save(); scheduleEkonomiPush();
+      } else if(resultat.action === 'uppdatera_saldo' && resultat.saldo && resultat.saldo.konto){
+        const konto = String(resultat.saldo.konto).trim();
+        const belopp = Number(resultat.saldo.belopp) || 0;
+        const uppdaterad = fmtDate(todayDate());
+        const finns = state.ekonomiSaldon.find(s => s.konto.toLowerCase() === konto.toLowerCase());
+        if(finns){ finns.belopp = belopp; finns.uppdaterad = uppdaterad; }
+        else state.ekonomiSaldon.push({ konto: konto, belopp: belopp, uppdaterad: uppdaterad });
+        save(); scheduleEkonomiPush();
+      } else if(resultat.action === 'markera_klar' && resultat.matcha_beskrivning){
+        const sok = String(resultat.matcha_beskrivning).toLowerCase();
+        const match = state.ekonomiPoster.find(p => String(p.beskrivning).toLowerCase().includes(sok));
+        if(match){
+          state.ekonomiPoster = state.ekonomiPoster.filter(p => p.id !== match.id);
+          save(); scheduleEkonomiPush();
+        } else {
+          extra = ' (Jag hittade ingen post som matchade, så inget ändrades.)';
+        }
+      }
+      ekonomiChat.push({ roll: 'ass', text: resultat.svar + extra });
+    }catch(e){
+      ekonomiChat.push({ roll: 'ass', text: 'Något gick fel — kan du försöka igen?' });
+    }finally{
+      ekonomiSkickar = false;
+      renderEkonomi();
+      renderIdag();
+      const inp = document.getElementById('ekoChatInput');
+      if(inp) inp.focus();
+    }
   },
 
   kodSpara(){
