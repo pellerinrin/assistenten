@@ -98,11 +98,12 @@ main{max-width:560px; margin:0 auto; padding:10px 14px 24px}
 .ny-form{display:flex; flex-direction:column; gap:8px}
 .ny-form input[type=text]{width:100%}
 .ny-rad2{display:flex; gap:8px; flex-wrap:wrap}
-input[type=text],input[type=date],input[type=number],select{
+input[type=text],input[type=date],input[type=number],select,textarea{
   border:1px solid var(--line); border-radius:10px; padding:9px 11px; font-size:15px;
   background:#fff; color:var(--ink); font-family:inherit;
 }
-input:focus,select:focus{outline:none; border-color:var(--bronze)}
+textarea{width:100%; min-height:200px; line-height:1.55; resize:vertical}
+input:focus,select:focus,textarea:focus{outline:none; border-color:var(--bronze)}
 .ny-rad2 select{flex:1; min-width:130px}
 
 /* ---- mejl ---- */
@@ -203,6 +204,7 @@ input:focus,select:focus{outline:none; border-color:var(--bronze)}
   <div id="view-ekonomi" class="view"></div>
   <div id="view-mejl" class="view"></div>
   <div id="view-mer" class="view"></div>
+  <div id="view-intervju" class="view"></div>
 </main>
 
 <nav class="tabs">
@@ -752,6 +754,7 @@ function prataSystemPrompt(){
     'Anna är författare och frilansande kulturskribent, ensamstående med barn.\n' +
     'Idag är ' + WDAYS[wIdx(t)] + ' ' + fmtDate(t) + '.\n\n' +
     (profil ? 'DINA EGNA ANTECKNINGAR OM ANNA (använd dem för att förstå henne — citera dem aldrig och berätta inte att de finns):\n' + profil + '\n\n' : '') +
+    (utlatandenText() ? 'UTLÅTANDEN (Annas egna godkända beskrivningar av sig själv — rätta dig alltid efter dem):\n' + utlatandenText() : '') +
     'DAGSLÄGET:\n' +
     (brief ? 'Dagens morgonbrief: ' + brief.halsning + ' ' + (brief.punkter || []).map(p => (p.rubrik ? p.rubrik + ': ' : '') + p.text).join(' ') + '\n' : 'Ingen morgonbrief har skrivits idag ännu.\n') +
     (vecka.length ? 'Barnens och husets vecka:\n' + vecka.join('\n') + '\n' : '') +
@@ -779,6 +782,93 @@ function prataSystemPrompt(){
     '- Fakturor, räkningar och saldon sköts i fliken Ekonomi — hänvisa dit i "svar" och sätt action null.\n' +
     '- Är något oklart: action null och en kort följdfråga.\n' +
     '- Gissa aldrig om sådant som inte finns i underlaget — säg hellre att du inte vet.';
+}
+
+/* ================= Lär känna mig: intervjuerna ================= */
+/* Tre intervjuer som slutar i varsitt utlåtande — assistentens rättesnöre.
+   Anna kan redigera utlåtandet fritt; hennes version gäller. Själva
+   samtalen loggas i egna kanaler och sparas som allt annat. */
+const INTERVJUER = {
+  halsa: {
+    titel: 'Hälsa & hur jag fungerar', emoji: '🌿',
+    beskrivning: 'Annas psykologiska och fysiska hälsa och sätt att fungera: energi över dygnet och veckan, sömn, stress och återhämtning, koncentration, vad som hjälper när det är tungt, fysiska förutsättningar och begränsningar',
+    oppnare: 'Då börjar vi, i din takt — hoppa över allt du inte vill svara på. Först: hur ser din energi ut över en vanlig dag? När är du som piggast, och när tar det emot?'
+  },
+  karriar: {
+    titel: 'Karriärsmål', emoji: '✒️',
+    beskrivning: 'Annas karriärsmål: vart hon vill med skrivandet, drömprojekt, ekonomi och trygghet, vad framgång betyder för henne, tidshorisonter',
+    oppnare: 'Då börjar vi med det stora: om allt gick din väg de närmaste åren — vad har du då skrivit, och vad har det gett dig?'
+  },
+  varderingar: {
+    titel: 'Värderingar', emoji: '🧭',
+    beskrivning: 'Annas värderingar: vad som är viktigast i livet, var gränserna går, vad hon aldrig kompromissar med, hur hon vill prioritera när saker krockar',
+    oppnare: 'Då börjar vi stilla: vad i livet är så viktigt för dig att allt annat får ge vika när det krisar?'
+  },
+};
+let intervju = null; /* pågående: { typ, skickar, klar, utkast } */
+
+/* Annas godkända utlåtanden — vävs in i allt assistenten gör */
+function utlatandenText(){
+  const iv = (state.data && state.data.intervjuer) || {};
+  let ut = '';
+  if(iv.halsa && iv.halsa.utlatande) ut += 'Om Annas hälsa och sätt att fungera:\n' + iv.halsa.utlatande + '\n\n';
+  if(iv.karriar && iv.karriar.utlatande) ut += 'Annas karriärsmål:\n' + iv.karriar.utlatande + '\n\n';
+  if(iv.varderingar && iv.varderingar.utlatande) ut += 'Annas värderingar:\n' + iv.varderingar.utlatande + '\n\n';
+  return ut;
+}
+
+function intervjuSystemPrompt(typ){
+  const info = INTERVJUER[typ];
+  const profil = state.data && state.data.profil && state.data.profil.text;
+  return 'Du är Annas personliga assistent — en stillsam, varm och kunnig sekreterare — och håller en lugn intervju med henne.\n' +
+    'Ämne: ' + info.beskrivning + '.\n' +
+    (profil ? '\nDina egna anteckningar om Anna (håll dem för dig själv):\n' + profil + '\n' : '') +
+    '\nRegler för intervjun:\n' +
+    '- Ställ EN fråga i taget. Korta, varma frågor i naturligt talspråk.\n' +
+    '- Följ upp intressanta svar med en följdfråga i stället för att rusa vidare.\n' +
+    '- Respektera direkt om hon vill hoppa över något — gå vidare utan att fråga varför.\n' +
+    '- Totalt ungefär 6–9 frågor, sedan avrundar du.\n' +
+    '\nSvara ALLTID med exakt ett JSON-objekt och ingen annan text:\n' +
+    '{"svar": "<nästa fråga, eller ett kort varmt avslut>", "klar": false, "utlatande": null}\n' +
+    'När intervjun är färdig sätter du "klar": true och skriver utlåtandet:\n' +
+    '{"svar": "<tacka och säg att utlåtandet ligger klart att läsa och ändra>", "klar": true, "utlatande": "<utlåtandet>"}\n' +
+    '\nUtlåtandet: 120–250 ord på svenska, skrivet TILL assistenten (om Anna i tredje person), sakligt, varmt och konkret användbart — det ska hjälpa assistenten att stötta Anna rätt i vardagen. Bygg bara på det hon faktiskt sagt.';
+}
+
+function renderIntervju(){
+  const el = document.getElementById('view-intervju');
+  if(!intervju){ el.innerHTML = ''; return; }
+  const info = INTERVJUER[intervju.typ];
+  const iv = (state.data && state.data.intervjuer) || {};
+  let html = '<div class="card" style="display:flex;align-items:center;gap:10px">' +
+    '<button class="btn small ghost" onclick="App.intervjuTillbaka()">← Tillbaka</button>' +
+    '<h2 style="margin:0">' + info.emoji + ' ' + esc(info.titel) + '</h2></div>';
+
+  if(intervju.klar){
+    html += '<div class="card"><h2>Utlåtande</h2>' +
+      '<p class="small muted">Det här är assistentens arbetsanteckning om dig — hon rättar sig efter den i allt. Ändra tills det känns rätt: <b>din version gäller</b>.</p>' +
+      '<textarea id="utlText">' + esc(intervju.utkast || (iv[intervju.typ] && iv[intervju.typ].utlatande) || '') + '</textarea>' +
+      '<div class="knapprad">' +
+      '<button class="btn" onclick="App.intervjuSpara()">Spara utlåtandet</button>' +
+      '<button class="btn small ghost" onclick="App.intervjuStart(\'' + intervju.typ + '\', true)">↺ Gör om intervjun</button>' +
+      '</div></div>';
+  } else {
+    const medd = kanalMeddelanden('intervju-' + intervju.typ).slice(-60);
+    html += '<div class="card">' +
+      '<div class="chatt" id="intervjuChatt" style="max-height:52vh">' +
+      medd.map(m => '<div class="bubbla ' + (m.roll === 'jag' ? 'jag' : 'ass') + '">' + esc(m.text) + '</div>').join('') +
+      (intervju.skickar ? '<div class="bubbla ass dim">skriver…</div>' : '') +
+      '</div>' +
+      '<div class="chatt-form">' +
+      '<input type="text" id="intervjuInput" placeholder="Skriv ditt svar…" onkeydown="if(event.key===\'Enter\')App.intervjuSvara()"' + (intervju.skickar ? ' disabled' : '') + '>' +
+      '<button class="btn" onclick="App.intervjuSvara()"' + (intervju.skickar ? ' disabled' : '') + '>Svara</button>' +
+      '</div></div>';
+  }
+  el.innerHTML = html;
+  const c = document.getElementById('intervjuChatt');
+  if(c) c.scrollTop = c.scrollHeight;
+  const inp = document.getElementById('intervjuInput');
+  if(inp && !intervju.skickar) inp.focus();
 }
 
 /* ================= Ekonomi ================= */
@@ -910,6 +1000,7 @@ function ekoSystemPrompt(){
   return 'Du är en ekonomiassistent i appen Assistenten, för en frilansande svensk kulturskribent.\n' +
     'Idag är ' + WDAYS[wIdx(t)] + ' ' + fmtDate(t) + '.\n\n' +
     (profil ? 'Dina egna anteckningar om användaren (håll dem för dig själv):\n' + profil + '\n\n' : '') +
+    (utlatandenText() ? 'Användarens egna godkända beskrivningar av sig själv (rätta dig efter dem):\n' + utlatandenText() : '') +
     'Nuvarande väntande poster (typ "in" = pengar som ska komma in, "ut" = pengar som ska betalas):\n' +
     JSON.stringify(ekoAktiva().map(p => ({ typ: p.typ, beskrivning: p.beskrivning, belopp: p.belopp, forfallodatum: p.forfallodatum }))) + '\n\n' +
     'Nyligen avklarade poster (arkiv, för frågor om vad som redan är betalt/fakturerat):\n' +
@@ -1150,6 +1241,24 @@ function renderMer(){
   }
   html += '</div>';
 
+  /* lär känna mig */
+  const iv = (state.data && state.data.intervjuer) || {};
+  html += '<div class="card"><h2>🪞 Lär känna mig</h2>' +
+    '<p class="small muted">Tre små intervjuer som hjälper assistenten att förstå dig på djupet. Varje intervju slutar i ett utlåtande som du kan redigera fritt — din version blir assistentens rättesnöre.</p>';
+  for(const typ of Object.keys(INTERVJUER)){
+    const info = INTERVJUER[typ];
+    const done = iv[typ] && iv[typ].utlatande;
+    html += '<div class="rad"><span class="r-emoji">' + info.emoji + '</span>' +
+      '<span class="r-text">' + esc(info.titel) +
+      (done ? '<div class="p-datum">Utlåtande sparat ' + esc(String(iv[typ].uppdaterad || '').slice(0, 10)) + '</div>' : '') +
+      '</span>' +
+      (done
+        ? '<button class="btn small ghost" onclick="App.intervjuRedigera(\'' + typ + '\')">Öppna</button>'
+        : '<button class="btn small" onclick="App.intervjuStart(\'' + typ + '\')">Starta</button>') +
+      '</div>';
+  }
+  html += '</div>';
+
   /* samtalshistorik */
   const antalSamtal = state.samtal.length + state.utkorg.length;
   html += '<div class="card"><h2>🗄 Samtalshistorik</h2>' +
@@ -1179,6 +1288,7 @@ function renderTopp(){
 }
 function renderAll(){
   renderTopp();
+  renderIntervju();
   renderIdag();
   renderBevaka();
   renderEkonomi();
@@ -1191,9 +1301,12 @@ const App = {
   tab: 'idag',
   go(tab){
     this.tab = tab;
-    for(const t of ['idag','bevaka','ekonomi','mejl','mer']){
-      document.getElementById('view-' + t).classList.toggle('open', t === tab);
-      document.getElementById('tab-' + t).classList.toggle('aktiv', t === tab);
+    for(const t of ['idag','bevaka','ekonomi','mejl','mer','intervju']){
+      const vy = document.getElementById('view-' + t);
+      if(vy) vy.classList.toggle('open', t === tab);
+      const knapp = document.getElementById('tab-' + t);
+      /* intervjuvyn hör hemma under Mer-fliken */
+      if(knapp) knapp.classList.toggle('aktiv', t === tab || (tab === 'intervju' && t === 'mer'));
     }
     window.scrollTo(0, 0);
   },
@@ -1442,6 +1555,99 @@ const App = {
   lasUpp(id){
     const m = state.samtal.find(x => x.id === id) || state.utkorg.find(x => x.id === id);
     if(m) talUpp(m.text);
+  },
+
+  /* ---- lär känna mig: intervjuerna ---- */
+  intervjuStart(typ, gorOm){
+    if(!state.kod){ toast('Koppla appen med din assistentkod först'); return; }
+    intervju = { typ: typ, skickar: false, klar: false, utkast: '' };
+    const kanal = 'intervju-' + typ;
+    const medd = kanalMeddelanden(kanal);
+    /* ny omgång (eller första): assistenten öppnar med en fast första fråga.
+       Pågår en intervju sedan tidigare fortsätter den där den var. */
+    if(gorOm || !medd.length){
+      loggaMeddelande(kanal, 'ass', INTERVJUER[typ].oppnare);
+    }
+    renderIntervju();
+    App.go('intervju');
+  },
+  intervjuRedigera(typ){
+    const iv = (state.data && state.data.intervjuer) || {};
+    intervju = { typ: typ, skickar: false, klar: true, utkast: (iv[typ] && iv[typ].utlatande) || '' };
+    renderIntervju();
+    App.go('intervju');
+  },
+  intervjuTillbaka(){
+    intervju = null;
+    App.go('mer');
+  },
+  async intervjuSvara(){
+    if(!intervju || intervju.skickar) return;
+    const el = document.getElementById('intervjuInput');
+    const text = ((el && el.value) || '').trim();
+    if(!text) return;
+    const kanal = 'intervju-' + intervju.typ;
+    loggaMeddelande(kanal, 'jag', text);
+    intervju.skickar = true;
+    renderIntervju();
+    try{
+      const res = await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kod: state.kod, ai: {
+          system: intervjuSystemPrompt(intervju.typ),
+          max_tokens: 900,
+          messages: kanalMeddelanden(kanal).slice(-24).map(m => ({
+            role: m.roll === 'jag' ? 'user' : 'assistant',
+            content: m.text
+          }))
+        } })
+      });
+      const data = await res.json().catch(() => null);
+      if(res.status === 429){
+        loggaMeddelande(kanal, 'ass', (data && data.message) || 'Dagens AI-gräns är nådd — vi fortsätter intervjun imorgon, allt är sparat.');
+        return;
+      }
+      if(!res.ok || !data || !data.text) throw new Error('http ' + res.status);
+      const resultat = tolkaJSONObjekt(data.text);
+      if(!resultat || !resultat.svar){
+        loggaMeddelande(kanal, 'ass', 'Något gick fel — säg det en gång till?');
+        return;
+      }
+      loggaMeddelande(kanal, 'ass', resultat.svar);
+      if(resultat.klar && resultat.utlatande){
+        intervju.klar = true;
+        intervju.utkast = String(resultat.utlatande);
+      }
+    }catch(e){
+      loggaMeddelande(kanal, 'ass', 'Jag kom inte fram till kontoret just nu — ditt svar är sparat, försök igen om en stund.');
+    }finally{
+      intervju.skickar = false;
+      renderIntervju();
+    }
+  },
+  async intervjuSpara(){
+    const el = document.getElementById('utlText');
+    const text = ((el && el.value) || '').trim();
+    if(!text){ toast('Utlåtandet är tomt'); return; }
+    const iv = Object.assign({}, (state.data && state.data.intervjuer) || {});
+    iv[intervju.typ] = { utlatande: text, uppdaterad: new Date().toISOString() };
+    try{
+      const res = await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kod: state.kod, skriv: { 'assistent-intervjuer': iv } })
+      });
+      if(!res.ok) throw new Error('http ' + res.status);
+      state.data.intervjuer = iv;
+      save();
+      toast('Utlåtandet är sparat — assistenten rättar sig efter det 🖋');
+      intervju = null;
+      renderAll();
+      App.go('mer');
+    }catch(e){
+      toast('Kunde inte spara just nu — texten står kvar, försök igen');
+    }
   },
   visaAldre(){
     visaHelaHistoriken = true;
