@@ -1166,13 +1166,16 @@ function ekoSystemPrompt(){
     '{\n' +
     '  "svar": "kort, vänligt svar på svenska",\n' +
     '  "action": "ny_post" | "uppdatera_saldo" | "markera_klar" | null,\n' +
-    '  "post": { "typ": "in" | "ut", "beskrivning": "...", "belopp": tal, "forfallodatum": "ÅÅÅÅ-MM-DD" },\n' +
+    '  "post": { "typ": "in" | "ut", "beskrivning": "...", "belopp": tal, "forfallodatum": "ÅÅÅÅ-MM-DD", "redan_klar": true/false },\n' +
     '  "saldo": { "konto": "...", "belopp": tal },\n' +
     '  "matcha_beskrivning": "..."\n' +
     '}\n' +
     'Regler:\n' +
     '- "post" bara vid action "ny_post", "saldo" bara vid "uppdatera_saldo", "matcha_beskrivning" bara vid "markera_klar" (ordagrann del av den befintliga postens beskrivning).\n' +
-    '- Tolka relativa datum (imorgon, på fredag, nästa vecka) utifrån dagens datum.\n' +
+    '- typ "in" = pengar användaren ska få in (t.ex. en faktura hon skickat till en kund); typ "ut" = en räkning hon ska betala.\n' +
+    '- "redan_klar": true om användaren säger att pengarna REDAN kommit in eller att räkningen REDAN är betald ("kom in idag", "är betald", "har fått betalt") — då läggs posten direkt i arkivet i stället för som väntande. Annars false.\n' +
+    '- Skriv en tydlig, kort beskrivning (t.ex. "Faktura till [kund]" eller "Elräkning"), inte en ordagrann upprepning av användarens mening.\n' +
+    '- Tolka relativa datum (imorgon, på fredag, nästa vecka) utifrån dagens datum. Vid "redan_klar" utan tydligt datum: använd dagens datum.\n' +
     '- Belopp anges som rent tal i kronor, utan tusentalsavgränsare.\n' +
     '- Om något saknas eller är oklart (belopp, datum): sätt "action" till null och ställ en kort följdfråga i "svar".\n' +
     '- Vid frågor om läget: räkna på posterna ovan och sammanfatta i "svar", "action" null.';
@@ -1265,6 +1268,9 @@ function renderEkonomi(){
       '<input type="number" id="ekoBelopp" placeholder="Belopp" style="flex:1;min-width:110px">' +
       '<input type="date" id="ekoDatum" style="flex:1">' +
       '</div>' +
+      '<label class="small" style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:2px 0">' +
+      '<input type="checkbox" id="ekoRedan" style="width:18px;height:18px;accent-color:var(--green)">' +
+      'Redan betald / mottagen — läggs direkt i arkivet</label>' +
       '<p class="small muted" style="margin:2px 0 0">Fota fakturan så läser jag av belopp och datum åt dig:</p>' +
       '<div class="knapprad" style="margin-top:6px">' +
       '<label class="btn small ghost" style="cursor:pointer">📷 Ta foto' +
@@ -1599,22 +1605,27 @@ const App = {
     const beskr = document.getElementById('ekoBeskr').value.trim();
     const belopp = Number(document.getElementById('ekoBelopp').value);
     const datum = document.getElementById('ekoDatum').value || '';
+    const redan = !!(document.getElementById('ekoRedan') || {}).checked;
     const fil = ekoValdFil;
     if(!beskr || !belopp || !datum){ toast('Fyll i beskrivning, belopp och datum'); return; }
     const id = 'e' + Date.now() + Math.random().toString(36).slice(2, 5);
-    state.ekonomiPoster.push({
+    const post = {
       id: id,
       typ: ekoForm.typ, beskrivning: beskr, belopp: belopp,
-      forfallodatum: datum, status: 'väntar'
-    });
+      forfallodatum: datum, status: redan ? 'klar' : 'väntar'
+    };
+    /* redan betald/mottagen: hamnar direkt i arkivet — bara uppgifterna
+       sparas, ingen bilaga (bilden behövs bara för aktuella poster) */
+    if(redan) post.klarNar = new Date(datum + 'T12:00:00').toISOString();
+    state.ekonomiPoster.push(post);
     ekoForm.open = false;
     ekoValdFil = null;
     save();
     scheduleEkonomiPush();
     renderEkonomi();
     renderIdag();
-    toast('Noterat. 🖋');
-    if(fil) laddaUppBilaga(id, fil);
+    toast(redan ? 'Arkiverat 🗄' : 'Noterat. 🖋');
+    if(fil && !redan) laddaUppBilaga(id, fil);
   },
   ekoKlar(id){
     const p = state.ekonomiPoster.find(x => x.id === id);
@@ -1963,14 +1974,17 @@ const App = {
       }
       let extra = '';
       if(resultat.action === 'ny_post' && resultat.post && resultat.post.beskrivning && resultat.post.forfallodatum){
-        state.ekonomiPoster.push({
+        const redan = resultat.post.redan_klar === true;
+        const nyPost = {
           id: 'e' + Date.now() + Math.random().toString(36).slice(2, 5),
           typ: resultat.post.typ === 'in' ? 'in' : 'ut',
           beskrivning: String(resultat.post.beskrivning),
           belopp: Number(resultat.post.belopp) || 0,
           forfallodatum: String(resultat.post.forfallodatum),
-          status: 'väntar'
-        });
+          status: redan ? 'klar' : 'väntar'
+        };
+        if(redan) nyPost.klarNar = new Date().toISOString();
+        state.ekonomiPoster.push(nyPost);
         save(); scheduleEkonomiPush();
       } else if(resultat.action === 'uppdatera_saldo' && resultat.saldo && resultat.saldo.konto){
         const konto = String(resultat.saldo.konto).trim();
