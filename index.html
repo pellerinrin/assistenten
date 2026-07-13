@@ -803,14 +803,14 @@ function prataSystemPrompt(){
     '{\n' +
     '  "svar": "ditt svar på svenska",\n' +
     '  "action": "ny_bevakning" | "klar_bevakning" | null,\n' +
-    '  "bevakning": { "omrade": "barn" | "karriar" | "hushall" | "halsa", "text": "...", "datum": "ÅÅÅÅ-MM-DD eller null" },\n' +
-    '  "matcha_text": "..."\n' +
+    '  "bevakningar": [ { "omrade": "barn" | "karriar" | "hushall" | "halsa", "text": "...", "datum": "ÅÅÅÅ-MM-DD eller null" } ],\n' +
+    '  "matcha_texter": ["..."]\n' +
     '}\n' +
     'Regler:\n' +
     '- "svar" läses ofta upp högt: skriv naturligt talspråk i hela meningar, utan punktlistor, emojis eller specialtecken. Kort (1–3 meningar) om inte Anna ber om mer.\n' +
-    '- Ber Anna dig komma ihåg, bevaka eller påminna om något: action "ny_bevakning" med rimligt omrade och datum (tolka "imorgon", "på torsdag" osv utifrån dagens datum; null om inget datum nämns).\n' +
-    '- Säger Anna att något är gjort/klart: action "klar_bevakning" och "matcha_text" = ordagrann del av den befintliga bevakningens text. Finns ingen träff, ställ en följdfråga i stället.\n' +
-    '- "bevakning" bara vid "ny_bevakning", "matcha_text" bara vid "klar_bevakning".\n' +
+    '- Ber Anna dig komma ihåg, bevaka eller påminna om saker: action "ny_bevakning" och lägg EN post PER sak i listan "bevakningar" — även om det är många på en gång (t.ex. flera böcker med olika datum), lägg in ALLA i samma svar, aldrig en i taget. Rimligt omrade och datum per post (tolka "imorgon", "på torsdag" osv utifrån dagens datum; null om inget datum nämns).\n' +
+    '- Säger Anna att en eller flera saker är gjorda/klara: action "klar_bevakning" och lista i "matcha_texter" en ordagrann del av varje befintlig bevaknings text som ska bockas av. Finns ingen träff, ställ en följdfråga i stället.\n' +
+    '- "bevakningar" bara vid "ny_bevakning", "matcha_texter" bara vid "klar_bevakning".\n' +
     '- Fakturor, räkningar och saldon sköts i fliken Ekonomi — hänvisa dit i "svar" och sätt action null.\n' +
     '- Är något oklart: action null och en kort följdfråga.\n' +
     '- Gissa aldrig om sådant som inte finns i underlaget — säg hellre att du inte vet.';
@@ -1723,26 +1723,36 @@ const App = {
         return;
       }
       let extra = '';
-      if(resultat.action === 'ny_bevakning' && resultat.bevakning && resultat.bevakning.text){
-        state.poster.push({
-          id: 'p' + Date.now() + Math.random().toString(36).slice(2, 5),
-          omrade: OMRADEN[resultat.bevakning.omrade] ? resultat.bevakning.omrade : 'hushall',
-          text: String(resultat.bevakning.text),
-          datum: resultat.bevakning.datum ? String(resultat.bevakning.datum) : '',
-          klar: false,
-          skapad: new Date().toISOString()
-        });
-        save(); schedulePosterPush(); renderBevaka();
-      } else if(resultat.action === 'klar_bevakning' && resultat.matcha_text){
-        const sok = String(resultat.matcha_text).toLowerCase();
-        const match = state.poster.find(p => !p.klar && String(p.text).toLowerCase().includes(sok));
-        if(match){
-          match.klar = true;
-          match.klarNar = new Date().toISOString();
-          save(); schedulePosterPush(); renderBevaka();
-        } else {
-          extra = ' (Jag hittade ingen bevakning som matchade, så inget bockades av.)';
+      if(resultat.action === 'ny_bevakning'){
+        /* nya formatet: en lista; äldre/enkla format: ett enskilt objekt */
+        const lista = Array.isArray(resultat.bevakningar) ? resultat.bevakningar
+          : (resultat.bevakning ? [resultat.bevakning] : []);
+        let n = 0;
+        for(const b of lista){
+          if(!b || !b.text) continue;
+          state.poster.push({
+            id: 'p' + Date.now() + Math.random().toString(36).slice(2, 6) + (n++),
+            omrade: OMRADEN[b.omrade] ? b.omrade : 'hushall',
+            text: String(b.text),
+            datum: b.datum ? String(b.datum) : '',
+            klar: false,
+            skapad: new Date().toISOString()
+          });
         }
+        if(n){ save(); schedulePosterPush(); renderBevaka(); }
+      } else if(resultat.action === 'klar_bevakning'){
+        const soklista = Array.isArray(resultat.matcha_texter) ? resultat.matcha_texter
+          : (resultat.matcha_text ? [resultat.matcha_text] : []);
+        let bockade = 0, missade = 0;
+        for(const s of soklista){
+          const sok = String(s || '').toLowerCase();
+          if(!sok) continue;
+          const match = state.poster.find(p => !p.klar && String(p.text).toLowerCase().includes(sok));
+          if(match){ match.klar = true; match.klarNar = new Date().toISOString(); bockade++; }
+          else missade++;
+        }
+        if(bockade){ save(); schedulePosterPush(); renderBevaka(); }
+        if(!bockade && missade) extra = ' (Jag hittade ingen bevakning som matchade, så inget bockades av.)';
       }
       loggaMeddelande('prata', 'ass', resultat.svar + extra);
       if(viaRost) talUpp(resultat.svar);
