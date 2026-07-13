@@ -30,6 +30,7 @@ Bearer-token identifierar direkt vem det är; assistentens egna nycklar plus lä
 - `assistent-ekonomi-saldon` — `[{ konto, belopp, uppdaterad }]` (kända kontosaldon)
 - `assistent-bilaga-<postId>` — `{ namn, typ, data (dataURL), uppladdad }` — fakturafoton/PDF:er, komprimerade i webbläsaren; hämtas styckvis med `?bilaga=<postId>` och raderas (via `radera_bilaga`) när posten bockas av — bilden är färskvara, uppgifterna arkiveras för alltid
 - `assistent-profil` — `{ uppdaterad, text }` — assistentens egna anteckningar om Anna, skrivs av morgonjobbet och läses av chattarna; visas aldrig i appens gränssnitt
+- `assistent-intervjuer` — `{ halsa|karriar|varderingar: { svar: {frageId: text}, utlatande?, uppdaterad } }` — tre frågeformulär under Mer (fasta frågor, se `INTERVJUER` i index.html), svaren fylls i direkt i textfält och sparas automatiskt (inget AI-samtal krävs); en knapp låter assistenten sammanfatta ifyllda svar till ett `utlatande` som Anna redigerar fritt och sparar själv — hennes sparade text är det som vävs in i chattarna och morgonbriefen
 - `assistent-samtal-ÅÅÅÅ-MM` — samtalsloggen per månad `[{ id, t, roll: jag|ass, kanal: prata|ekonomi, text }]`; skrivs via `logga`-operationen (dubblettskydd på id), raderas bara via `radera_samtal`
 
 Båda chattarna — "Prata med mig" på förstasidan och Ekonomi-flikens — skickar `POST { ai: { system, messages } }` (med Bearer-token) till samma API; servern vidarebefordrar till Anthropic och räknar anropet mot kontots dagliga AI-tak (delas med Skrivbordet).
