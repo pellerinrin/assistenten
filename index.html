@@ -886,6 +886,21 @@ let prataSkickar = false;
    det som sägs om den sparas för alltid i samtalsloggen som vanlig text) */
 let prataBifogad = null;
 let prataBildPreviews = {};
+/* länkar Anna klistrar in i chatten läses av via r.jina.ai (samma
+   läsartjänst som Skrivbordets egen länkanalys i App.jsx) — en gratis
+   proxy som hämtar och renderar sidan åt oss, så inga CORS- eller
+   JS-rendering-problem, och ingen egen serverkod behövs. */
+const LANK_REGEX = /https?:\/\/[^\s<>"']+/g;
+async function hamtaLankText(url){
+  try{
+    const r = await fetch('https://r.jina.ai/' + url);
+    if(r.ok){
+      const t = (await r.text()).trim();
+      if(t.length >= 200) return t.slice(0, 6000);
+    }
+  }catch(e){}
+  return null;
+}
 let rostAktiv = false;
 let rostIgang = null;
 
@@ -953,6 +968,7 @@ function prataSystemPrompt(){
     '- Säger Anna att en eller flera saker är gjorda/klara (eller ska slås ihop till en ny): lista i "matcha_texter" en ordagrann del av varje befintlig bevaknings text som ska bockas av, och lägg samtidigt in ersättaren i "bevakningar" om en sådan efterfrågas. Finns ingen träff, ställ en följdfråga i stället — men gissa inte och lova aldrig ett kommande steg.\n' +
     '- Du kan ALDRIG utföra något i ett senare svar än detta — det finns inget "nästa steg" du kommer ihåg. Antingen gör du hela ändringen nu, i just detta anrop, eller så frågar du Anna om något du behöver veta först. Säg aldrig "jag lägger in det i nästa steg" eller liknande.\n' +
     '- Fakturor, räkningar och saldon sköts i fliken Ekonomi — hänvisa dit i "svar".\n' +
+    '- Klistrar Anna in en länk: sidans textinnehåll har redan hämtats åt dig och ligger i ett eget textblock i det här meddelandet (eller ett meddelande om att den inte gick att öppna). Läs det och svara utifrån det — låtsas aldrig att du öppnat en länk du inte fått innehåll för.\n' +
     '- Är något oklart: lämna bevakningar/matcha_texter tomma och ställ en kort följdfråga i "svar".\n' +
     '- Gissa aldrig om sådant som inte finns i underlaget — säg hellre att du inte vet.';
 }
@@ -1953,23 +1969,41 @@ const App = {
     const el = document.getElementById('prataInput');
     const text = ((el && el.value) || '').trim();
     const bifogad = prataBifogad;
+    const lankar = Array.from(new Set(text.match(LANK_REGEX) || [])).slice(0, 2);
     if((!text && !bifogad) || prataSkickar) return;
     if(el) el.value = '';
-    const loggText = text || '📷 (bifogade en bild eller fil)';
+    const loggText = text || '📷 (bifogade en bild eller fil)'; /* text saknas bara om bifogad finns — se guarden ovan */
     const meddelandeId = loggaMeddelande('prata', 'jag', loggText);
     if(bifogad && bifogad.previewUrl) prataBildPreviews[meddelandeId] = bifogad.previewUrl;
     prataBifogad = null;
     prataSkickar = true;
     renderIdag();
     try{
+      /* länkar Anna klistrat in läses av INNAN AI-anropet (inte via ett
+         AI-verktyg) — "svara"-verktyget är tvingat (se PRATA_TOOL-kommentaren
+         nedan), och ett tvingat verktygsval kan inte samtidigt låta modellen
+         själv välja att anropa ett annat verktyg först. */
+      const lankResultat = [];
+      for(const url of lankar){
+        const innehall = await hamtaLankText(url);
+        lankResultat.push({ url: url, innehall: innehall });
+      }
       /* rejäl budget: modellen tänker i osynliga block som räknas mot
          max_tokens — för snålt tak ger ett TOMT svar på tunga frågor */
       const historik = kanalMeddelanden('prata').filter(m => m.id !== meddelandeId).slice(-15).map(m => ({
         role: m.roll === 'jag' ? 'user' : 'assistant',
         content: m.text
       }));
-      const sistaContent = bifogad
-        ? [bifogad.block, { type: 'text', text: text || 'Vad ser du i den här bilden/filen?' }]
+      const delar = [];
+      if(bifogad) delar.push(bifogad.block);
+      for(const l of lankResultat){
+        delar.push({ type: 'text', text: l.innehall
+          ? 'Innehåll från länken ' + l.url + ':\n"""' + l.innehall + '"""'
+          : 'Länken ' + l.url + ' gick inte att öppna eller läsa av — säg det till Anna i stället för att gissa vad den innehåller.' });
+      }
+      let huvudText = text || (bifogad ? 'Vad ser du i den här bilden/filen?' : 'Titta på länken och berätta vad den handlar om.');
+      const sistaContent = (bifogad || delar.length)
+        ? delar.concat([{ type: 'text', text: huvudText }])
         : loggText;
       const { res, data } = await aiAnrop({ ai: {
         max_tokens: 4000,
