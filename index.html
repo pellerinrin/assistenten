@@ -1112,14 +1112,41 @@ function tolkaJSONObjekt(text){
 }
 
 /* Räddar ut "svar"-fältet ur ett AI-svar även om JSON:et klippts av i förtid
-   (t.ex. för lågt max_tokens på en ovanligt lång fråga) — annars försvinner
-   ett fullt läsbart svar bara för att fälten efter det aldrig hann skrivas. */
+   (t.ex. när svaret blev längre än max_tokens och strängen aldrig avslutades)
+   — annars försvinner ett fullt läsbart svar bara för att JSON:et inte gick
+   att tolka i sin helhet. Läser tecken för tecken från "svar":" och tar med
+   allt fram till avslutande citattecken, eller till slutet om det saknas. */
 function raddaSvarUrText(text){
   if(!text) return null;
-  const m = String(text).match(/"svar"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  const t = String(text);
+  const m = t.match(/"svar"\s*:\s*"/);
   if(!m) return null;
-  try{ return JSON.parse('"' + m[1] + '"'); }
-  catch(e){ return m[1].replace(/\\n/g, '\n').replace(/\\"/g, '"'); }
+  let out = '', escd = false;
+  for(let i = m.index + m[0].length; i < t.length; i++){
+    const ch = t[i];
+    if(escd){
+      out += ch === 'n' ? '\n' : ch === 't' ? '\t' : ch;
+      escd = false;
+    } else if(ch === '\\'){
+      escd = true;
+    } else if(ch === '"'){
+      break; /* strängen slut */
+    } else {
+      out += ch;
+    }
+  }
+  out = out.trim();
+  return out || null;
+}
+
+/* Sista utväg: modellen svarade i klartext utan brukbart JSON. Visa den råa
+   texten (utan kodstaket) hellre än ett generiskt felmeddelande — men bara
+   om den inte ser ut som ett trasigt JSON-objekt (då hade räddningen ovan
+   redan fångat "svar"). */
+function lasbarText(text){
+  const ren = String(text || '').replace(/```json/gi, '').replace(/```/g, '').trim();
+  if(!ren || ren.startsWith('{') || ren.startsWith('[')) return null;
+  return ren;
 }
 
 function ekoSystemPrompt(){
@@ -1661,7 +1688,7 @@ const App = {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ ai: {
-          max_tokens: 1200,
+          max_tokens: 1500,
           system: prataSystemPrompt(),
           messages: kanalMeddelanden('prata').slice(-16).map(m => ({
             role: m.roll === 'jag' ? 'user' : 'assistant',
@@ -1677,7 +1704,7 @@ const App = {
       if(!res.ok || !data || !data.text) throw new Error('http ' + res.status);
       let resultat = tolkaJSONObjekt(data.text);
       if(!resultat || !resultat.svar){
-        const raddat = raddaSvarUrText(data.text);
+        const raddat = raddaSvarUrText(data.text) || lasbarText(data.text);
         if(raddat) resultat = { svar: raddat };
       }
       if(!resultat || !resultat.svar){
@@ -1911,7 +1938,7 @@ const App = {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ ai: {
-          max_tokens: 1000,
+          max_tokens: 1500,
           system: ekoSystemPrompt(),
           messages: kanalMeddelanden('ekonomi').slice(-12).map(m => ({
             role: m.roll === 'jag' ? 'user' : 'assistant',
@@ -1927,7 +1954,7 @@ const App = {
       if(!res.ok || !data || !data.text) throw new Error('http ' + res.status);
       let resultat = tolkaJSONObjekt(data.text);
       if(!resultat || !resultat.svar){
-        const raddat = raddaSvarUrText(data.text);
+        const raddat = raddaSvarUrText(data.text) || lasbarText(data.text);
         if(raddat) resultat = { svar: raddat };
       }
       if(!resultat || !resultat.svar){
