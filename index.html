@@ -488,6 +488,22 @@ async function pushBrief(){
   }
 }
 
+/* profilen är assistentens egna anteckningar om Anna — morgonbriefen skriver
+   om den varje dag, men chatten kan lägga till en rad direkt ("anteckning" i
+   svara-verktyget) så ett "jag ska komma ihåg det" faktiskt fastnar */
+async function pushProfil(){
+  if(!session || !state.data || !state.data.profil) return;
+  try{
+    await fetch(API, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ skriv: { 'assistent-profil': state.data.profil } })
+    });
+  }catch(e){
+    /* morgonbriefen läser samtalet ändå — anteckningen går inte förlorad */
+  }
+}
+
 /* ---- samtalsloggen: allt som sägs mellan Anna och assistenten sparas på
    kontot och försvinner aldrig (utom när Anna själv raderar det under Mer).
    Nya rader väntar i utkorgen tills servern kvitterat dem, så inget tappas
@@ -660,7 +676,7 @@ function renderIdag(){
       esc(m.text) +
       (m.roll === 'ass' && KAN_TALA ? ' <button class="las-upp" title="Läs upp" onclick="App.lasUpp(\'' + m.id + '\')">🔊</button>' : '') +
       '</div>').join('') +
-    (prataSkickar ? '<div class="bubbla ass dim">skriver…</div>' : '') +
+    (prataSkickar ? '<div class="bubbla ass dim" id="prataStatusBubbla">' + esc(prataStatus || 'skriver…') + '</div>' : '') +
     '</div>' +
     (prataBifogad ? '<div class="chatt-bifogad">' +
       (prataBifogad.previewUrl ? '<img src="' + prataBifogad.previewUrl + '">' : '📄') +
@@ -880,6 +896,12 @@ const KAN_TALA = 'speechSynthesis' in window;
 const HALSNING_PRATA = 'Hej! Fråga mig om dagen — barnen, mejlen, pengarna, skrivandet — eller be mig komma ihåg något åt dig.';
 let visaHelaHistoriken = false;
 let prataSkickar = false;
+let prataStatus = ''; /* "öppnar sidan…" osv — visas i skriver-bubblan under agent-rundorna */
+function prataVisaStatus(text){
+  prataStatus = text || '';
+  const el = document.getElementById('prataStatusBubbla');
+  if(el) el.textContent = prataStatus || 'skriver…';
+}
 /* en bifogad bild/PDF som väntar på att skickas, samt bildförhandsvisningar
    till redan skickade meddelanden — bara i minnet, sparas aldrig till
    servern eller localStorage (jfr fakturabilagor: bilden är tillfällig,
@@ -891,6 +913,9 @@ let prataBildPreviews = {};
    proxy som hämtar och renderar sidan åt oss, så inga CORS- eller
    JS-rendering-problem, och ingen egen serverkod behövs. */
 const LANK_REGEX = /https?:\/\/[^\s<>"']+/g;
+function kortAdress(url){
+  try{ return new URL(url).hostname.replace(/^www\./, ''); }catch(e){ return 'sidan'; }
+}
 async function hamtaLankText(url){
   try{
     const r = await fetch('https://r.jina.ai/' + url);
@@ -960,17 +985,21 @@ function prataSystemPrompt(){
     'Ur mejlen: viktiga: ' + JSON.stringify((mejl.viktiga || []).slice(0, 8)) +
     ' obesvarade: ' + JSON.stringify((mejl.obesvarade || []).slice(0, 8)) +
     ' datum som hittats: ' + JSON.stringify((mejl.datumfynd || []).slice(0, 10)) + '\n\n' +
-    'Du svarar genom att anropa verktyget "svara" med fälten svar, bevakningar och matcha_texter.\n' +
+    'DINA VERKTYG — du arbetar i rundor och MÅSTE anropa ett verktyg varje runda:\n' +
+    '- oppna_lank: öppnar en webbadress och ger dig sidans text. Du kan öppna flera sidor i följd, och även undersidor du bygger själv (t.ex. lägga till /om eller /kontakt på en adress Anna gett dig). Säg ALDRIG att du inte kan öppna länkar eller klicka dig vidare — du kan.\n' +
+    '- sok_webben: söker på webben efter aktuell information (nyheter, öppettider, evenemang, fakta). Använd den hellre än att gissa om något du inte vet säkert.\n' +
+    '- svara: avslutar din tur med svaret till Anna. Varje tur MÅSTE sluta med svara — använd de andra verktygen först om du behöver, sedan svara.\n' +
     'Regler:\n' +
     '- "svar" läses ofta upp högt: skriv naturligt talspråk i hela meningar, utan punktlistor, emojis eller specialtecken. Kort (1–3 meningar) om inte Anna ber om mer.\n' +
-    '- "bevakningar" och "matcha_texter" är OBEROENDE av varandra och kan båda vara ifyllda I SAMMA ANROP. Ska du både bocka av gamla poster OCH lägga in en ny (t.ex. slå ihop flera till en gemensam påminnelse): gör BÅDA i detta enda anrop, aldrig "i nästa steg".\n' +
+    '- Fälten i "svara" (bevakningar, matcha_texter, andra_bevakningar, ekonomi, anteckning) är OBEROENDE av varandra och kan alla vara ifyllda I SAMMA ANROP. Ska du både bocka av gamla poster OCH lägga in en ny (t.ex. slå ihop flera till en gemensam påminnelse): gör BÅDA i detta enda anrop, aldrig "i nästa steg".\n' +
     '- Ber Anna dig komma ihåg, bevaka eller påminna om saker: lägg EN post PER sak i listan "bevakningar" — även om det är många på en gång, lägg in ALLA i samma anrop, aldrig en i taget. Rimligt omrade och datum per post (tolka "imorgon", "på torsdag" osv utifrån dagens datum; null om inget datum nämns).\n' +
-    '- Säger Anna att en eller flera saker är gjorda/klara (eller ska slås ihop till en ny): lista i "matcha_texter" en ordagrann del av varje befintlig bevaknings text som ska bockas av, och lägg samtidigt in ersättaren i "bevakningar" om en sådan efterfrågas. Finns ingen träff, ställ en följdfråga i stället — men gissa inte och lova aldrig ett kommande steg.\n' +
-    '- Du kan ALDRIG utföra något i ett senare svar än detta — det finns inget "nästa steg" du kommer ihåg. Antingen gör du hela ändringen nu, i just detta anrop, eller så frågar du Anna om något du behöver veta först. Säg aldrig "jag lägger in det i nästa steg" eller liknande.\n' +
-    '- Fakturor, räkningar och saldon sköts i fliken Ekonomi — hänvisa dit i "svar".\n' +
-    '- Klistrar Anna in en länk: sidans textinnehåll har redan hämtats åt dig och ligger i ett eget textblock i det här meddelandet (eller ett meddelande om att den inte gick att öppna). Läs det och svara utifrån det — låtsas aldrig att du öppnat en länk du inte fått innehåll för.\n' +
-    '- Är något oklart: lämna bevakningar/matcha_texter tomma och ställ en kort följdfråga i "svar".\n' +
-    '- Gissa aldrig om sådant som inte finns i underlaget — säg hellre att du inte vet.';
+    '- Säger Anna att en eller flera saker är gjorda/klara: lista i "matcha_texter" en ordagrann del av varje befintlig bevaknings text som ska bockas av. Vill hon flytta fram, döpa om eller ändra en bevakning (inte bocka av): använd "andra_bevakningar" med matcha + ny_text/nytt_datum. Finns ingen träff, ställ en följdfråga i stället — men gissa inte.\n' +
+    '- Efter att svara har körts avslutas din tur — det finns inget "nästa steg" du kommer ihåg till senare. Behöver du öppna en sida eller söka: gör det INNAN du anropar svara, i samma tur. Säg aldrig "jag gör det i nästa steg" eller liknande.\n' +
+    '- Ekonomi kan du sköta direkt härifrån med fältet "ekonomi" i svara: ny_post (räkning/faktura med beskrivning, belopp, forfallodatum; redan_klar true om den redan är betald/mottagen), markera_klar (matcha_beskrivning mot en väntande post) och uppdatera_saldo. Detaljerad genomgång av ekonomin finns också i fliken Ekonomi.\n' +
+    '- Berättar Anna något varaktigt om sig själv eller sina projekt som du bör minnas framöver (inte en uppgift med datum): spara en kort rad i "anteckning" — den hamnar i dina egna anteckningar om henne.\n' +
+    '- Klistrar Anna in en länk hämtas sidans text automatiskt åt dig och ligger i ett textblock i meddelandet. Vill du läsa mer (undersidor, källor) — använd oppna_lank. Låtsas aldrig att du läst något du inte fått innehåll för.\n' +
+    '- Är något oklart: ställ en kort följdfråga i "svar" i stället för att ändra något.\n' +
+    '- Gissa aldrig om sådant som inte finns i underlaget eller går att slå upp — säg hellre att du inte vet.';
 }
 
 /* Tvingar strukturerat svar via ett Anthropic-verktyg i stället för att be
@@ -980,13 +1009,14 @@ function prataSystemPrompt(){
    applicerades trots att svaret lät klart. Se api/assistent.js. */
 const PRATA_TOOL = {
   name: 'svara',
-  description: 'Ge ett svar till Anna, och lägg till och/eller bocka av bevakningar om det behövs.',
+  description: 'Avsluta din tur med ett svar till Anna. Kan samtidigt lägga till, bocka av eller ändra bevakningar, sköta ekonomiposter och spara en minnesanteckning.',
   input_schema: {
     type: 'object',
     properties: {
       svar: { type: 'string', description: 'Svaret till Anna, på svenska, naturligt talspråk.' },
       bevakningar: {
         type: 'array',
+        description: 'Nya bevakningar att lägga till.',
         items: {
           type: 'object',
           properties: {
@@ -997,11 +1027,88 @@ const PRATA_TOOL = {
           required: ['text']
         }
       },
-      matcha_texter: { type: 'array', items: { type: 'string' } }
+      matcha_texter: { type: 'array', items: { type: 'string' }, description: 'Ordagranna delar av befintliga bevakningars text som ska bockas av som klara.' },
+      andra_bevakningar: {
+        type: 'array',
+        description: 'Ändringar av befintliga bevakningar (ny text och/eller nytt datum) utan att bocka av dem.',
+        items: {
+          type: 'object',
+          properties: {
+            matcha: { type: 'string', description: 'Ordagrann del av den befintliga bevakningens text.' },
+            ny_text: { type: ['string', 'null'] },
+            nytt_datum: { type: ['string', 'null'], description: 'ÅÅÅÅ-MM-DD, eller tom sträng för att ta bort datumet.' }
+          },
+          required: ['matcha']
+        }
+      },
+      ekonomi: {
+        type: 'array',
+        description: 'Ekonomiåtgärder: nya poster, avbockningar eller saldouppdateringar.',
+        items: {
+          type: 'object',
+          properties: {
+            action: { type: 'string', enum: ['ny_post', 'uppdatera_saldo', 'markera_klar'] },
+            post: {
+              type: 'object',
+              properties: {
+                typ: { type: 'string', enum: ['in', 'ut'] },
+                beskrivning: { type: 'string' },
+                belopp: { type: 'number' },
+                forfallodatum: { type: 'string' },
+                redan_klar: { type: 'boolean' }
+              }
+            },
+            saldo: { type: 'object', properties: { konto: { type: 'string' }, belopp: { type: 'number' } } },
+            matcha_beskrivning: { type: 'string' }
+          },
+          required: ['action']
+        }
+      },
+      anteckning: { type: ['string', 'null'], description: 'En kort varaktig minnesanteckning om Anna eller hennes projekt (inte en uppgift med datum) — sparas i din interna profil.' }
     },
     required: ['svar']
   }
 };
+
+/* Verktygslådan för chatten: modellen väljer själv verktyg per runda
+   (tool_choice "any" — den MÅSTE anropa något, aldrig lös prosa) och kan
+   öppna länkar och söka i flera steg innan den avslutar med "svara". */
+const OPPNA_LANK_TOOL = {
+  name: 'oppna_lank',
+  description: 'Öppna en webbadress och få sidans textinnehåll. Fungerar även för undersidor — bygg själv adressen (t.ex. exempel.se/om eller exempel.se/kontakt) utifrån en sida du redan öppnat eller fått av Anna.',
+  input_schema: {
+    type: 'object',
+    properties: { url: { type: 'string', description: 'Fullständig adress som börjar med http:// eller https://' } },
+    required: ['url']
+  }
+};
+const SOK_WEBBEN_TOOL = {
+  name: 'sok_webben',
+  description: 'Sök på webben efter aktuell information: nyheter, öppettider, evenemang, priser, fakta du inte är säker på.',
+  input_schema: {
+    type: 'object',
+    properties: { fraga: { type: 'string', description: 'Sökfrågan, gärna på svenska med ort/datum om det är relevant.' } },
+    required: ['fraga']
+  }
+};
+const PRATA_VERKTYG = [PRATA_TOOL, OPPNA_LANK_TOOL, SOK_WEBBEN_TOOL];
+
+/* webbsökning körs som ett eget AI-anrop med Anthropics web_search-verktyg
+   (serverns ai.web-väg) — det kan inte ligga i samma anrop som verktygs-
+   lådan eftersom tool_choice "any"/"tool" inte kan kombineras fritt med
+   serversökverktyget. Resultatet blir en kompakt textsammanfattning. */
+async function webbSok(fraga){
+  try{
+    const { res, data } = await aiAnrop({ ai: {
+      web: true,
+      max_tokens: 2500,
+      system: 'Du är en sökassistent. Sök på webben och svara med en kompakt, saklig sammanfattning av vad du hittar (med källor och datum när det finns). Idag är ' + fmtDate(todayDate()) + '. Svara på svenska.',
+      messages: [{ role: 'user', content: String(fraga || '') }]
+    } });
+    if(res && res.ok && data && data.text) return String(data.text).slice(0, 6000);
+  }catch(e){}
+  return 'Sökningen gick inte att genomföra just nu.';
+}
 
 /* ================= Lär känna mig: intervjuerna ================= */
 /* Tre frågeformulär med fasta frågor och fält att fylla i själv — inget
@@ -1979,12 +2086,12 @@ const App = {
     prataSkickar = true;
     renderIdag();
     try{
-      /* länkar Anna klistrat in läses av INNAN AI-anropet (inte via ett
-         AI-verktyg) — "svara"-verktyget är tvingat (se PRATA_TOOL-kommentaren
-         nedan), och ett tvingat verktygsval kan inte samtidigt låta modellen
-         själv välja att anropa ett annat verktyg först. */
+      /* länkar Anna klistrat in läses av direkt — det sparar en runda.
+         Vill modellen läsa MER (undersidor, källor) använder den verktyget
+         oppna_lank i agent-rundorna nedan. */
       const lankResultat = [];
       for(const url of lankar){
+        prataVisaStatus('📖 Läser ' + kortAdress(url) + '…');
         const innehall = await hamtaLankText(url);
         lankResultat.push({ url: url, innehall: innehall });
       }
@@ -2005,33 +2112,70 @@ const App = {
       const sistaContent = (bifogad || delar.length)
         ? delar.concat([{ type: 'text', text: huvudText }])
         : loggText;
-      const { res, data } = await aiAnrop({ ai: {
-        max_tokens: 4000,
-        system: prataSystemPrompt(),
-        tool: PRATA_TOOL,
-        messages: historik.concat([{ role: 'user', content: sistaContent }])
-      } });
-      if(res.status === 401){
-        loggaMeddelande('prata', 'ass', 'Du verkar utloggad — logga in igen på Idag-fliken, så svarar jag som vanligt.');
-        return;
-      }
-      if(res.status === 429){
-        loggaMeddelande('prata', 'ass', (data && data.message) || 'Dagens AI-gräns är nådd — vi fortsätter imorgon.');
-        return;
-      }
-      if(aiCreditSlut(data)){
-        loggaMeddelande('prata', 'ass', 'AI-kontots kredit verkar slut — fyll på på console.anthropic.com, så svarar jag igen.');
-        return;
-      }
-      if(res.ok && data && typeof data.text === 'string' && !data.text.trim()){
-        loggaMeddelande('prata', 'ass', 'Jag tappade tråden mitt i svaret — ställ gärna frågan en gång till.');
-        return;
-      }
-      if(!res.ok || !data || !data.text) throw new Error('http ' + res.status);
-      let resultat = tolkaJSONObjekt(data.text);
-      if(!resultat || !resultat.svar){
-        const raddat = raddaSvarUrText(data.text) || lasbarText(data.text);
-        if(raddat) resultat = { svar: raddat };
+
+      /* ---- agent-rundorna: modellen väljer verktyg (öppna länk, sök,
+         svara) tills den avslutar med svara. Sista rundan tvingas svara
+         fram så Anna alltid får ett svar. ---- */
+      const MAX_RUNDOR = 5;
+      let meddelanden = historik.concat([{ role: 'user', content: sistaContent }]);
+      let resultat = null;
+      for(let runda = 0; runda < MAX_RUNDOR; runda++){
+        prataVisaStatus(runda === 0 ? '' : 'funderar…');
+        const { res, data } = await aiAnrop({ ai: {
+          max_tokens: 4000,
+          system: prataSystemPrompt(),
+          tools: PRATA_VERKTYG,
+          tool_choice: runda === MAX_RUNDOR - 1 ? { name: 'svara' } : undefined,
+          messages: meddelanden
+        } });
+        if(res.status === 401){
+          loggaMeddelande('prata', 'ass', 'Du verkar utloggad — logga in igen på Idag-fliken, så svarar jag som vanligt.');
+          return;
+        }
+        if(res.status === 429){
+          loggaMeddelande('prata', 'ass', (data && data.message) || 'Dagens AI-gräns är nådd — vi fortsätter imorgon.');
+          return;
+        }
+        if(aiCreditSlut(data)){
+          loggaMeddelande('prata', 'ass', 'AI-kontots kredit verkar slut — fyll på på console.anthropic.com, så svarar jag igen.');
+          return;
+        }
+        if(!res.ok || !data) throw new Error('http ' + res.status);
+        const anrop = Array.isArray(data.verktyg) ? data.verktyg : [];
+        const svaraAnrop = anrop.find(v => v.name === 'svara');
+        if(svaraAnrop && svaraAnrop.input){ resultat = svaraAnrop.input; break; }
+        if(!anrop.length){
+          /* inga verktygsanrop alls — falla tillbaka på texttolkning som förr */
+          if(typeof data.text === 'string' && !data.text.trim()){
+            loggaMeddelande('prata', 'ass', 'Jag tappade tråden mitt i svaret — ställ gärna frågan en gång till.');
+            return;
+          }
+          resultat = tolkaJSONObjekt(data.text);
+          if(!resultat || !resultat.svar){
+            const raddat = raddaSvarUrText(data.text) || lasbarText(data.text);
+            if(raddat) resultat = { svar: raddat };
+          }
+          break;
+        }
+        /* utför verktygen och spela tillbaka resultaten till nästa runda */
+        meddelanden = meddelanden.concat([{
+          role: 'assistant',
+          content: anrop.map(v => ({ type: 'tool_use', id: v.id, name: v.name, input: v.input }))
+        }]);
+        const verktygsResultat = [];
+        for(const v of anrop){
+          let ut = 'Okänt verktyg.';
+          if(v.name === 'oppna_lank' && v.input && v.input.url){
+            prataVisaStatus('📖 Läser ' + kortAdress(v.input.url) + '…');
+            ut = (await hamtaLankText(String(v.input.url))) ||
+              'Sidan gick inte att öppna eller läsa av. Säg det till Anna — gissa inte vad den innehåller.';
+          } else if(v.name === 'sok_webben' && v.input && v.input.fraga){
+            prataVisaStatus('🔍 Söker på webben…');
+            ut = await webbSok(String(v.input.fraga));
+          }
+          verktygsResultat.push({ type: 'tool_result', tool_use_id: v.id, content: String(ut).slice(0, 6000) });
+        }
+        meddelanden = meddelanden.concat([{ role: 'user', content: verktygsResultat }]);
       }
       if(!resultat || !resultat.svar){
         loggaMeddelande('prata', 'ass', 'Något gick fel — kan du försöka igen?');
@@ -2073,13 +2217,77 @@ const App = {
         if(bockade) andrat = true;
         if(!bockade && missade) extra = ' (Jag hittade ingen bevakning som matchade, så inget bockades av.)';
       }
+      /* ändringar av befintliga bevakningar: ny text och/eller nytt datum */
+      const andringar = Array.isArray(resultat.andra_bevakningar) ? resultat.andra_bevakningar : [];
+      for(const a of andringar){
+        const sok = String((a && a.matcha) || '').toLowerCase();
+        if(!sok) continue;
+        const p = state.poster.find(p => !p.klar && String(p.text).toLowerCase().includes(sok));
+        if(!p){ extra += ' (Jag hittade ingen bevakning att ändra som matchade.)'; continue; }
+        if(a.ny_text) p.text = String(a.ny_text);
+        if(a.nytt_datum !== undefined && a.nytt_datum !== null) p.datum = String(a.nytt_datum);
+        andrat = true;
+      }
       if(andrat){ save(); schedulePosterPush(); renderBevaka(); }
+      /* ekonomiåtgärder direkt från chatten — samma hantering som
+         ekonomichatten (App.ekoSkicka), men flera åtgärder i ett svar */
+      const ekoLista = Array.isArray(resultat.ekonomi) ? resultat.ekonomi : [];
+      let ekoAndrat = false;
+      for(const e of ekoLista){
+        if(!e || !e.action) continue;
+        if(e.action === 'ny_post' && e.post && e.post.beskrivning && e.post.forfallodatum){
+          const redan = e.post.redan_klar === true;
+          const nyPost = {
+            id: 'e' + Date.now() + Math.random().toString(36).slice(2, 5),
+            typ: e.post.typ === 'in' ? 'in' : 'ut',
+            beskrivning: String(e.post.beskrivning),
+            belopp: Number(e.post.belopp) || 0,
+            forfallodatum: String(e.post.forfallodatum),
+            status: redan ? 'klar' : 'väntar'
+          };
+          if(redan) nyPost.klarNar = new Date().toISOString();
+          state.ekonomiPoster.push(nyPost);
+          ekoAndrat = true;
+        } else if(e.action === 'uppdatera_saldo' && e.saldo && e.saldo.konto){
+          const konto = String(e.saldo.konto).trim();
+          const belopp = Number(e.saldo.belopp) || 0;
+          const finns = state.ekonomiSaldon.find(s => s.konto.toLowerCase() === konto.toLowerCase());
+          if(finns){ finns.belopp = belopp; finns.uppdaterad = fmtDate(todayDate()); }
+          else state.ekonomiSaldon.push({ konto: konto, belopp: belopp, uppdaterad: fmtDate(todayDate()) });
+          ekoAndrat = true;
+        } else if(e.action === 'markera_klar' && e.matcha_beskrivning){
+          const sok = String(e.matcha_beskrivning).toLowerCase();
+          const match = ekoAktiva().find(p => String(p.beskrivning).toLowerCase().includes(sok));
+          if(match){
+            match.status = 'klar';
+            match.klarNar = new Date().toISOString();
+            if(match.bilaga){
+              match.bilaga = false;
+              fetch(API, { method: 'POST', headers: authHeaders(), body: JSON.stringify({ radera_bilaga: match.id }) }).catch(() => {});
+            }
+            ekoAndrat = true;
+          } else {
+            extra += ' (Jag hittade ingen ekonomipost som matchade, så inget ändrades där.)';
+          }
+        }
+      }
+      if(ekoAndrat){ save(); scheduleEkonomiPush(); renderEkonomi(); }
+      /* varaktig minnesanteckning → assistentens interna profil */
+      if(resultat.anteckning && String(resultat.anteckning).trim()){
+        state.data.profil = state.data.profil || {};
+        state.data.profil.text = (((state.data.profil.text || '') + '\n' +
+          String(resultat.anteckning).trim().slice(0, 400)).trim()).slice(-6000);
+        state.data.profil.uppdaterad = new Date().toISOString();
+        save();
+        pushProfil();
+      }
       loggaMeddelande('prata', 'ass', resultat.svar + extra);
       if(viaRost) talUpp(resultat.svar);
     }catch(e){
       loggaMeddelande('prata', 'ass', 'Jag kom inte fram till kontoret just nu — försök igen om en stund.');
     }finally{
       prataSkickar = false;
+      prataStatus = '';
       renderIdag();
       if(!viaRost){
         const nyEl = document.getElementById('prataInput');
