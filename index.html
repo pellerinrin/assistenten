@@ -924,6 +924,13 @@ async function pushIntervjuSvar(){
   }
 }
 
+/* Ett svar hålls som en textsträng (så det går att redigera och sammanfatta),
+   men kan bestå av flera valda alternativ, ett per rad. Radbrytning används
+   som avskiljare eftersom alternativen själva kan innehålla komma. */
+function svarDelar(text){
+  return String(text || '').split('\n').map(s => s.trim()).filter(Boolean);
+}
+
 function renderIntervju(){
   const el = document.getElementById('view-intervju');
   if(!intervju){ el.innerHTML = ''; return; }
@@ -935,33 +942,39 @@ function renderIntervju(){
     '<h2 style="margin:0">' + info.emoji + ' ' + esc(info.titel) + '</h2></div>';
 
   if(intervju.laege === 'utlatande'){
+    const utlText = intervju.utkast !== null ? intervju.utkast : sparatUtlatande;
     html += '<div class="card"><h2>Utlåtande</h2>' +
       '<p class="small muted">Assistentens arbetsanteckning om dig, byggd på svaren — hon rättar sig efter den i allt. Ändra tills det känns rätt: <b>din version gäller</b>.</p>' +
-      '<textarea id="utlText">' + esc(intervju.utkast !== null ? intervju.utkast : sparatUtlatande) + '</textarea>' +
+      (intervju.sammanfattar && !utlText
+        ? '<p class="small dim" style="margin:8px 0">🖋 Assistenten skriver utlåtandet…</p>'
+        : '') +
+      '<textarea id="utlText" placeholder="Här kommer utlåtandet — eller skriv ett eget.">' + esc(utlText) + '</textarea>' +
       '<div class="knapprad">' +
       '<button class="btn" onclick="App.intervjuSpara()">Spara utlåtandet</button>' +
       '<button class="btn small ghost" onclick="App.intervjuSammanfatta()"' + (intervju.sammanfattar ? ' disabled' : '') + '>' +
-      (intervju.sammanfattar ? 'Sammanfattar…' : '🖋 Låt assistenten sammanfatta svaren') + '</button>' +
+      (intervju.sammanfattar ? 'Skriver…' : '🖋 Skriv om utlåtandet') + '</button>' +
       '<button class="btn small ghost" onclick="App.intervjuTillFragor()">← Till frågorna</button>' +
       '</div></div>';
   } else {
     const total = info.fragor.length;
     const f = info.fragor[intervju.index];
     const varde = intervju.svar[f.id] || '';
+    const valda = svarDelar(varde);
     html += '<div class="card">' +
       '<p class="small dim" style="margin:0 0 10px">Fråga ' + (intervju.index + 1) + ' av ' + total + '</p>' +
       '<p class="small" style="font-weight:600;margin-bottom:12px">' + esc(f.text) + '</p>' +
       (f.alternativ && f.alternativ.length
         ? '<div class="alternativ">' + f.alternativ.map(a =>
-            '<button type="button" class="' + (varde === a ? 'vald' : '') + '" onclick="App.intervjuValjAlternativ(' + JSON.stringify(a).replace(/"/g, '&quot;') + ')">' + esc(a) + '</button>'
-          ).join('') + '</div>'
+            '<button type="button" class="' + (valda.includes(a) ? 'vald' : '') + '" onclick="App.intervjuValjAlternativ(' + JSON.stringify(a).replace(/"/g, '&quot;') + ')">' + esc(a) + '</button>'
+          ).join('') + '</div>' +
+          '<p class="small dim" style="margin:-4px 0 8px">Välj ett eller flera — eller skriv med egna ord nedan.</p>'
         : '') +
-      '<textarea id="svarText" oninput="App.intervjuSvarAndrat(this)" placeholder="…eller skriv med egna ord" style="min-height:70px">' + esc(varde) + '</textarea>' +
+      '<textarea id="svarText" oninput="App.intervjuSvarAndrat(this)" placeholder="Skriv med egna ord…" style="min-height:70px">' + esc(varde) + '</textarea>' +
       '<div class="knapprad">' +
       (intervju.index > 0 ? '<button class="btn small ghost" onclick="App.intervjuFoljd(-1)">← Föregående</button>' : '') +
       (intervju.index < total - 1
         ? '<button class="btn" onclick="App.intervjuFoljd(1)">Nästa →</button>'
-        : '<button class="btn" onclick="App.intervjuVisaUtlatande()">Klart — se utlåtandet</button>') +
+        : '<button class="btn" onclick="App.intervjuVisaUtlatande()">Klart — skriv utlåtandet</button>') +
       '</div>' +
       (intervju.index < total - 1
         ? '<div class="knapprad" style="margin-top:4px"><button class="btn small ghost" onclick="App.intervjuVisaUtlatande()">Hoppa till utlåtandet →</button></div>'
@@ -1699,6 +1712,12 @@ const App = {
     if(intervjuSvarTimer){ clearTimeout(intervjuSvarTimer); pushIntervjuSvar(); }
     intervju.laege = 'utlatande';
     renderIntervju();
+    /* skriv utlåtandet direkt när frågorna är klara — men skriv aldrig över
+       ett utlåtande som redan finns (utkast eller sparat) utan att Anna ber om det */
+    const iv = (state.data && state.data.intervjuer) || {};
+    const finnsUtlatande = intervju.utkast !== null || (iv[intervju.typ] && iv[intervju.typ].utlatande);
+    const harSvar = Object.values(intervju.svar).some(v => (v || '').trim());
+    if(!finnsUtlatande && harSvar) App.intervjuSammanfatta();
   },
   intervjuTillFragor(){
     if(!intervju) return;
@@ -1708,7 +1727,12 @@ const App = {
   intervjuValjAlternativ(text){
     if(!intervju) return;
     const f = INTERVJUER[intervju.typ].fragor[intervju.index];
-    intervju.svar[f.id] = text;
+    /* multival: klicka lägger till, klicka igen tar bort (ett val per rad) */
+    const valda = svarDelar(intervju.svar[f.id]);
+    const idx = valda.indexOf(text);
+    if(idx >= 0) valda.splice(idx, 1);
+    else valda.push(text);
+    intervju.svar[f.id] = valda.join('\n');
     scheduleIntervjuSvarPush();
     renderIntervju();
   },
@@ -1736,7 +1760,7 @@ const App = {
       const res = await fetch(API, {
         method: 'POST',
         headers: authHeaders(),
-        body: JSON.stringify({ ai: { system: system, max_tokens: 500, messages: [{ role: 'user', content: 'Skriv utlåtandet.' }] } })
+        body: JSON.stringify({ ai: { system: system, max_tokens: 1200, messages: [{ role: 'user', content: 'Skriv utlåtandet.' }] } })
       });
       const data = await res.json().catch(() => null);
       if(res.status === 429){
