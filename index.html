@@ -106,6 +106,14 @@ textarea{width:100%; min-height:200px; line-height:1.55; resize:vertical}
 input:focus,select:focus,textarea:focus{outline:none; border-color:var(--bronze)}
 .ny-rad2 select{flex:1; min-width:130px}
 
+/* ---- intervju: svarsalternativ ---- */
+.alternativ{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px}
+.alternativ button{
+  border:1px solid var(--line); background:#fff; color:var(--ink);
+  border-radius:999px; padding:7px 14px; font-size:13.5px; cursor:pointer;
+}
+.alternativ button.vald{border-color:var(--green); background:var(--green); color:#fff}
+
 /* ---- mejl ---- */
 .mejl-item{padding:10px 0; border-top:1px solid var(--line-soft)}
 .mejl-item:first-of-type{border-top:none}
@@ -818,43 +826,64 @@ const INTERVJUER = {
     titel: 'Hälsa & hur jag fungerar', emoji: '🌿',
     beskrivning: 'Annas psykologiska och fysiska hälsa och sätt att fungera: energi över dygnet och veckan, sömn, stress och återhämtning, koncentration, vad som hjälper när det är tungt, fysiska förutsättningar och begränsningar',
     fragor: [
-      { id: 'h1', text: 'Hur ser din energi ut över en vanlig dag — när är du som piggast, och när tar det emot?' },
-      { id: 'h2', text: 'Hur sover du för det mesta? Något som stör eller hjälper?' },
-      { id: 'h3', text: 'Vad brukar hjälpa dig när det känns tungt eller stressigt?' },
-      { id: 'h4', text: 'Vad hjälper dig att komma ner i varv och återhämta dig?' },
-      { id: 'h5', text: 'Finns det något du lätt glömmer eller tappar bort i vardagen?' },
-      { id: 'h6', text: 'Har du fysiska förutsättningar eller begränsningar jag bör känna till?' },
-      { id: 'h7', text: 'Finns det tider på dygnet eller veckan då du helst inte vill bli störd?' },
+      { id: 'h1', text: 'Hur ser din energi ut över en vanlig dag — när är du som piggast, och när tar det emot?',
+        alternativ: ['Piggast på morgonen', 'Piggast på kvällen', 'Ojämnt, växlar mycket', 'Trött hela dagen'] },
+      { id: 'h2', text: 'Hur sover du för det mesta? Något som stör eller hjälper?',
+        alternativ: ['Sover bra', 'Somnar svårt', 'Vaknar mitt i natten', 'Sover för lite'] },
+      { id: 'h3', text: 'Vad brukar hjälpa dig när det känns tungt eller stressigt?',
+        alternativ: ['Prata med någon', 'Vara ensam en stund', 'Röra på mig', 'Skriva av mig'] },
+      { id: 'h4', text: 'Vad hjälper dig att komma ner i varv och återhämta dig?',
+        alternativ: ['Läsa', 'Promenad', 'Sova middag', 'Tv/serier'] },
+      { id: 'h5', text: 'Finns det något du lätt glömmer eller tappar bort i vardagen?',
+        alternativ: ['Tider och möten', 'Räkningar', 'Äta regelbundet', 'Ta pauser'] },
+      { id: 'h6', text: 'Har du fysiska förutsättningar eller begränsningar jag bör känna till?',
+        alternativ: ['Inga särskilda', 'Ont i rygg/nacke', 'Migrän ibland', 'Annat — skriver nedan'] },
+      { id: 'h7', text: 'Finns det tider på dygnet eller veckan då du helst inte vill bli störd?',
+        alternativ: ['Tidiga morgnar', 'Sena kvällar', 'Helger', 'Nej, när som helst går bra'] },
     ],
   },
   karriar: {
     titel: 'Karriärsmål', emoji: '✒️',
     beskrivning: 'Annas karriärsmål: vart hon vill med skrivandet, drömprojekt, ekonomi och trygghet, vad framgång betyder för henne, tidshorisonter',
     fragor: [
-      { id: 'k1', text: 'Om allt gick din väg de närmaste åren — vad har du då skrivit, och vad har det gett dig?' },
-      { id: 'k2', text: 'Vad betyder framgång för dig just nu?' },
-      { id: 'k3', text: 'Finns det ett drömprojekt du bär på?' },
-      { id: 'k4', text: 'Hur mycket väger ekonomisk trygghet mot konstnärlig frihet för dig?' },
-      { id: 'k5', text: 'Vilken typ av uppdrag eller texter ger dig mest energi?' },
-      { id: 'k6', text: 'Hur ser en riktigt bra arbetsvecka ut för dig?' },
-      { id: 'k7', text: 'Finns det något du skjutit upp som du egentligen vill ta tag i?' },
+      { id: 'k1', text: 'Om allt gick din väg de närmaste åren — vad har du då skrivit, och vad har det gett dig?',
+        alternativ: ['En bok jag är stolt över', 'Trygg ekonomi', 'Ett namn i branschen', 'Frihet att välja projekt'] },
+      { id: 'k2', text: 'Vad betyder framgång för dig just nu?',
+        alternativ: ['Att hinna skriva det jag vill', 'Bra betalt', 'Erkännande', 'Balans med livet i övrigt'] },
+      { id: 'k3', text: 'Finns det ett drömprojekt du bär på?',
+        alternativ: ['Ja, en bok', 'Ja, men inte klart vad', 'Nej, inte just nu', 'Flera olika'] },
+      { id: 'k4', text: 'Hur mycket väger ekonomisk trygghet mot konstnärlig frihet för dig?',
+        alternativ: ['Trygghet väger tyngst', 'Frihet väger tyngst', 'Vill ha båda', 'Beror på perioden'] },
+      { id: 'k5', text: 'Vilken typ av uppdrag eller texter ger dig mest energi?',
+        alternativ: ['Personliga/essäistiska texter', 'Undersökande journalistik', 'Kortare, snabba uppdrag', 'Längre skönlitterära projekt'] },
+      { id: 'k6', text: 'Hur ser en riktigt bra arbetsvecka ut för dig?',
+        alternativ: ['Långa sammanhängande skrivpass', 'Blandat med möten', 'Flexibla dagar', 'Tydlig struktur varje dag'] },
+      { id: 'k7', text: 'Finns det något du skjutit upp som du egentligen vill ta tag i?',
+        alternativ: ['Ja, ett skrivprojekt', 'Ja, något administrativt', 'Nej, inget särskilt', 'Flera saker'] },
     ],
   },
   varderingar: {
     titel: 'Värderingar', emoji: '🧭',
     beskrivning: 'Annas värderingar: vad som är viktigast i livet, var gränserna går, vad hon aldrig kompromissar med, hur hon vill prioritera när saker krockar',
     fragor: [
-      { id: 'v1', text: 'Vad i livet är så viktigt för dig att allt annat får ge vika när det krisar?' },
-      { id: 'v2', text: 'Var går dina gränser — vad kompromissar du aldrig med?' },
-      { id: 'v3', text: 'Hur vill du prioritera när barnen, jobbet och du själv krockar?' },
-      { id: 'v4', text: 'Vad vill du att barnen ska minnas av hur du var som förälder?' },
-      { id: 'v5', text: 'Finns det något du vill att jag alltid väger in när jag hjälper dig?' },
-      { id: 'v6', text: 'Vad gör dig verkligen glad i vardagen?' },
-      { id: 'v7', text: 'Är det något i ditt liv du vill att jag hjälper dig skydda tid för?' },
+      { id: 'v1', text: 'Vad i livet är så viktigt för dig att allt annat får ge vika när det krisar?',
+        alternativ: ['Barnen', 'Min egen hälsa', 'Relationer/vänner', 'Att hålla ihop vardagen'] },
+      { id: 'v2', text: 'Var går dina gränser — vad kompromissar du aldrig med?',
+        alternativ: ['Ärlighet', 'Tid med barnen', 'Min integritet som skribent', 'Att bli respekterad'] },
+      { id: 'v3', text: 'Hur vill du prioritera när barnen, jobbet och du själv krockar?',
+        alternativ: ['Barnen först, alltid', 'Försöker hitta balans', 'Jobbet måste ibland gå före', 'Beror helt på situationen'] },
+      { id: 'v4', text: 'Vad vill du att barnen ska minnas av hur du var som förälder?',
+        alternativ: ['Att jag fanns där', 'Att jag var rolig/lekfull', 'Att jag stod på deras sida', 'Att jag visade hur man älskar sitt arbete'] },
+      { id: 'v5', text: 'Finns det något du vill att jag alltid väger in när jag hjälper dig?',
+        alternativ: ['Var snäll i tonen', 'Påminn hellre en gång för mycket', 'Var rak och konkret', 'Ge mig andrum, inte fler krav'] },
+      { id: 'v6', text: 'Vad gör dig verkligen glad i vardagen?',
+        alternativ: ['Tid med barnen', 'Att skriva bra en dag', 'Naturen/utomhus', 'Lugna morgnar med kaffe'] },
+      { id: 'v7', text: 'Är det något i ditt liv du vill att jag hjälper dig skydda tid för?',
+        alternativ: ['Skrivandet', 'Vila/återhämtning', 'Tid med barnen', 'Träning/rörelse'] },
     ],
   },
 };
-let intervju = null; /* pågående: { typ, svar: {frageId: text}, utkast, sammanfattar } */
+let intervju = null; /* pågående: { typ, index, svar: {frageId: text}, laege: 'fraga'|'utlatande', utkast, sammanfattar } */
 
 /* Annas godkända utlåtanden — vävs in i allt assistenten gör */
 function utlatandenText(){
@@ -905,26 +934,44 @@ function renderIntervju(){
     '<button class="btn small ghost" onclick="App.intervjuTillbaka()">← Tillbaka</button>' +
     '<h2 style="margin:0">' + info.emoji + ' ' + esc(info.titel) + '</h2></div>';
 
-  html += '<div class="card"><p class="small muted" style="margin:0">Svara på det du vill — hoppa gärna över det som inte känns relevant just nu. Allt sparas automatiskt medan du skriver.</p></div>';
-
-  for(const f of info.fragor){
+  if(intervju.laege === 'utlatande'){
+    html += '<div class="card"><h2>Utlåtande</h2>' +
+      '<p class="small muted">Assistentens arbetsanteckning om dig, byggd på svaren — hon rättar sig efter den i allt. Ändra tills det känns rätt: <b>din version gäller</b>.</p>' +
+      '<textarea id="utlText">' + esc(intervju.utkast !== null ? intervju.utkast : sparatUtlatande) + '</textarea>' +
+      '<div class="knapprad">' +
+      '<button class="btn" onclick="App.intervjuSpara()">Spara utlåtandet</button>' +
+      '<button class="btn small ghost" onclick="App.intervjuSammanfatta()"' + (intervju.sammanfattar ? ' disabled' : '') + '>' +
+      (intervju.sammanfattar ? 'Sammanfattar…' : '🖋 Låt assistenten sammanfatta svaren') + '</button>' +
+      '<button class="btn small ghost" onclick="App.intervjuTillFragor()">← Till frågorna</button>' +
+      '</div></div>';
+  } else {
+    const total = info.fragor.length;
+    const f = info.fragor[intervju.index];
     const varde = intervju.svar[f.id] || '';
-    html += '<div class="card" style="padding-bottom:12px">' +
-      '<p class="small" style="font-weight:600;margin-bottom:8px">' + esc(f.text) + '</p>' +
-      '<textarea data-fid="' + f.id + '" oninput="App.intervjuSvarAndrat(this)" placeholder="Skriv här…" style="min-height:70px">' + esc(varde) + '</textarea>' +
+    html += '<div class="card">' +
+      '<p class="small dim" style="margin:0 0 10px">Fråga ' + (intervju.index + 1) + ' av ' + total + '</p>' +
+      '<p class="small" style="font-weight:600;margin-bottom:12px">' + esc(f.text) + '</p>' +
+      (f.alternativ && f.alternativ.length
+        ? '<div class="alternativ">' + f.alternativ.map(a =>
+            '<button type="button" class="' + (varde === a ? 'vald' : '') + '" onclick="App.intervjuValjAlternativ(' + JSON.stringify(a).replace(/"/g, '&quot;') + ')">' + esc(a) + '</button>'
+          ).join('') + '</div>'
+        : '') +
+      '<textarea id="svarText" oninput="App.intervjuSvarAndrat(this)" placeholder="…eller skriv med egna ord" style="min-height:70px">' + esc(varde) + '</textarea>' +
+      '<div class="knapprad">' +
+      (intervju.index > 0 ? '<button class="btn small ghost" onclick="App.intervjuFoljd(-1)">← Föregående</button>' : '') +
+      (intervju.index < total - 1
+        ? '<button class="btn" onclick="App.intervjuFoljd(1)">Nästa →</button>'
+        : '<button class="btn" onclick="App.intervjuVisaUtlatande()">Klart — se utlåtandet</button>') +
+      '</div>' +
+      (intervju.index < total - 1
+        ? '<div class="knapprad" style="margin-top:4px"><button class="btn small ghost" onclick="App.intervjuVisaUtlatande()">Hoppa till utlåtandet →</button></div>'
+        : '') +
       '</div>';
   }
 
-  html += '<div class="card"><h2>Utlåtande</h2>' +
-    '<p class="small muted">Assistentens arbetsanteckning om dig, byggd på svaren ovan — hon rättar sig efter den i allt. Ändra tills det känns rätt: <b>din version gäller</b>.</p>' +
-    '<textarea id="utlText">' + esc(intervju.utkast !== null ? intervju.utkast : sparatUtlatande) + '</textarea>' +
-    '<div class="knapprad">' +
-    '<button class="btn" onclick="App.intervjuSpara()">Spara utlåtandet</button>' +
-    '<button class="btn small ghost" onclick="App.intervjuSammanfatta()"' + (intervju.sammanfattar ? ' disabled' : '') + '>' +
-    (intervju.sammanfattar ? 'Sammanfattar…' : '🖋 Låt assistenten sammanfatta svaren') + '</button>' +
-    '</div></div>';
-
   el.innerHTML = html;
+  const ta = document.getElementById('svarText');
+  if(ta) ta.focus();
 }
 
 /* ================= Ekonomi ================= */
@@ -1048,6 +1095,17 @@ function tolkaJSONObjekt(text){
     }
   }
   return null;
+}
+
+/* Räddar ut "svar"-fältet ur ett AI-svar även om JSON:et klippts av i förtid
+   (t.ex. för lågt max_tokens på en ovanligt lång fråga) — annars försvinner
+   ett fullt läsbart svar bara för att fälten efter det aldrig hann skrivas. */
+function raddaSvarUrText(text){
+  if(!text) return null;
+  const m = String(text).match(/"svar"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  if(!m) return null;
+  try{ return JSON.parse('"' + m[1] + '"'); }
+  catch(e){ return m[1].replace(/\\n/g, '\n').replace(/\\"/g, '"'); }
 }
 
 function ekoSystemPrompt(){
@@ -1515,6 +1573,7 @@ const App = {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ ai: {
+          max_tokens: 1200,
           system: prataSystemPrompt(),
           messages: kanalMeddelanden('prata').slice(-16).map(m => ({
             role: m.roll === 'jag' ? 'user' : 'assistant',
@@ -1528,7 +1587,11 @@ const App = {
         return;
       }
       if(!res.ok || !data || !data.text) throw new Error('http ' + res.status);
-      const resultat = tolkaJSONObjekt(data.text);
+      let resultat = tolkaJSONObjekt(data.text);
+      if(!resultat || !resultat.svar){
+        const raddat = raddaSvarUrText(data.text);
+        if(raddat) resultat = { svar: raddat };
+      }
       if(!resultat || !resultat.svar){
         loggaMeddelande('prata', 'ass', 'Något gick fel — kan du försöka igen?');
         return;
@@ -1615,17 +1678,44 @@ const App = {
     if(!session){ toast('Logga in på Idag-fliken först'); return; }
     const iv = (state.data && state.data.intervjuer) || {};
     const sparadeSvar = (iv[typ] && iv[typ].svar) || {};
-    intervju = { typ: typ, svar: Object.assign({}, sparadeSvar), utkast: null, sammanfattar: false };
+    intervju = { typ: typ, index: 0, svar: Object.assign({}, sparadeSvar), laege: 'fraga', utkast: null, sammanfattar: false };
     renderIntervju();
     App.go('intervju');
   },
   intervjuTillbaka(){
+    if(intervjuSvarTimer){ clearTimeout(intervjuSvarTimer); pushIntervjuSvar(); }
     intervju = null;
     App.go('mer');
   },
+  intervjuFoljd(delta){
+    if(!intervju) return;
+    if(intervjuSvarTimer){ clearTimeout(intervjuSvarTimer); pushIntervjuSvar(); }
+    const total = INTERVJUER[intervju.typ].fragor.length;
+    intervju.index = Math.max(0, Math.min(total - 1, intervju.index + delta));
+    renderIntervju();
+  },
+  intervjuVisaUtlatande(){
+    if(!intervju) return;
+    if(intervjuSvarTimer){ clearTimeout(intervjuSvarTimer); pushIntervjuSvar(); }
+    intervju.laege = 'utlatande';
+    renderIntervju();
+  },
+  intervjuTillFragor(){
+    if(!intervju) return;
+    intervju.laege = 'fraga';
+    renderIntervju();
+  },
+  intervjuValjAlternativ(text){
+    if(!intervju) return;
+    const f = INTERVJUER[intervju.typ].fragor[intervju.index];
+    intervju.svar[f.id] = text;
+    scheduleIntervjuSvarPush();
+    renderIntervju();
+  },
   intervjuSvarAndrat(el){
     if(!intervju) return;
-    intervju.svar[el.dataset.fid] = el.value;
+    const f = INTERVJUER[intervju.typ].fragor[intervju.index];
+    intervju.svar[f.id] = el.value;
     scheduleIntervjuSvarPush();
   },
   async intervjuSammanfatta(){
@@ -1722,6 +1812,7 @@ const App = {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ ai: {
+          max_tokens: 1000,
           system: ekoSystemPrompt(),
           messages: kanalMeddelanden('ekonomi').slice(-12).map(m => ({
             role: m.roll === 'jag' ? 'user' : 'assistant',
@@ -1735,7 +1826,11 @@ const App = {
         return;
       }
       if(!res.ok || !data || !data.text) throw new Error('http ' + res.status);
-      const resultat = tolkaJSONObjekt(data.text);
+      let resultat = tolkaJSONObjekt(data.text);
+      if(!resultat || !resultat.svar){
+        const raddat = raddaSvarUrText(data.text);
+        if(raddat) resultat = { svar: raddat };
+      }
       if(!resultat || !resultat.svar){
         loggaMeddelande('ekonomi', 'ass', 'Något gick fel — kan du försöka igen?');
         return;
