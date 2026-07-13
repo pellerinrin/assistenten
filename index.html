@@ -857,16 +857,16 @@ function prataSystemPrompt(){
     'Svara ALLTID med exakt ett JSON-objekt och ingen annan text:\n' +
     '{\n' +
     '  "svar": "ditt svar på svenska",\n' +
-    '  "action": "ny_bevakning" | "klar_bevakning" | null,\n' +
     '  "bevakningar": [ { "omrade": "barn" | "karriar" | "hushall" | "halsa", "text": "...", "datum": "ÅÅÅÅ-MM-DD eller null" } ],\n' +
     '  "matcha_texter": ["..."]\n' +
     '}\n' +
     'Regler:\n' +
     '- "svar" läses ofta upp högt: skriv naturligt talspråk i hela meningar, utan punktlistor, emojis eller specialtecken. Kort (1–3 meningar) om inte Anna ber om mer.\n' +
-    '- Ber Anna dig komma ihåg, bevaka eller påminna om saker: action "ny_bevakning" och lägg EN post PER sak i listan "bevakningar" — även om det är många på en gång (t.ex. flera böcker med olika datum), lägg in ALLA i samma svar, aldrig en i taget. Rimligt omrade och datum per post (tolka "imorgon", "på torsdag" osv utifrån dagens datum; null om inget datum nämns).\n' +
-    '- Säger Anna att en eller flera saker är gjorda/klara: action "klar_bevakning" och lista i "matcha_texter" en ordagrann del av varje befintlig bevaknings text som ska bockas av. Finns ingen träff, ställ en följdfråga i stället.\n' +
-    '- "bevakningar" bara vid "ny_bevakning", "matcha_texter" bara vid "klar_bevakning".\n' +
-    '- Fakturor, räkningar och saldon sköts i fliken Ekonomi — hänvisa dit i "svar" och sätt action null.\n' +
+    '- "bevakningar" och "matcha_texter" är OBEROENDE av varandra och kan båda vara ifyllda I SAMMA SVAR — det finns inget separat "action"-fält att välja mellan. Ska du både bocka av gamla poster OCH lägga in en ny (t.ex. slå ihop flera till en gemensam påminnelse): gör BÅDA i detta enda svar, aldrig "i nästa steg".\n' +
+    '- Ber Anna dig komma ihåg, bevaka eller påminna om saker: lägg EN post PER sak i listan "bevakningar" — även om det är många på en gång, lägg in ALLA i samma svar, aldrig en i taget. Rimligt omrade och datum per post (tolka "imorgon", "på torsdag" osv utifrån dagens datum; null om inget datum nämns).\n' +
+    '- Säger Anna att en eller flera saker är gjorda/klara (eller ska slås ihop till en ny): lista i "matcha_texter" en ordagrann del av varje befintlig bevaknings text som ska bockas av, och lägg samtidigt in ersättaren i "bevakningar" om en sådan efterfrågas. Finns ingen träff, ställ en följdfråga i stället — men gissa inte och lova aldrig ett kommande steg.\n' +
+    '- Du kan ALDRIG utföra något i ett senare svar än detta — det finns inget "nästa steg" du kommer ihåg. Antingen gör du hela ändringen nu, i just detta JSON-objekt, eller så frågar du Anna om något du behöver veta först. Säg aldrig "jag lägger in det i nästa steg" eller liknande.\n' +
+    '- Fakturor, räkningar och saldon sköts i fliken Ekonomi — hänvisa dit i "svar".\n' +
     '- Är något oklart: action null och en kort följdfråga.\n' +
     '- Gissa aldrig om sådant som inte finns i underlaget — säg hellre att du inte vet.';
 }
@@ -1783,13 +1783,16 @@ const App = {
         loggaMeddelande('prata', 'ass', 'Något gick fel — kan du försöka igen?');
         return;
       }
+      /* bevakningar (nya) och matcha_texter (avbockade) är oberoende av
+         varandra och kan båda finnas i samma svar — t.ex. en sammanslagning
+         där gamla poster bockas av och en gemensam ny läggs in på en gång. */
       let extra = '';
-      if(resultat.action === 'ny_bevakning'){
-        /* nya formatet: en lista; äldre/enkla format: ett enskilt objekt */
-        const lista = Array.isArray(resultat.bevakningar) ? resultat.bevakningar
-          : (resultat.bevakning ? [resultat.bevakning] : []);
+      let andrat = false;
+      const nyaLista = Array.isArray(resultat.bevakningar) ? resultat.bevakningar
+        : (resultat.bevakning ? [resultat.bevakning] : []);
+      if(nyaLista.length){
         let n = 0;
-        for(const b of lista){
+        for(const b of nyaLista){
           if(!b || !b.text) continue;
           state.poster.push({
             id: 'p' + Date.now() + Math.random().toString(36).slice(2, 6) + (n++),
@@ -1800,10 +1803,11 @@ const App = {
             skapad: new Date().toISOString()
           });
         }
-        if(n){ save(); schedulePosterPush(); renderBevaka(); }
-      } else if(resultat.action === 'klar_bevakning'){
-        const soklista = Array.isArray(resultat.matcha_texter) ? resultat.matcha_texter
-          : (resultat.matcha_text ? [resultat.matcha_text] : []);
+        if(n) andrat = true;
+      }
+      const soklista = Array.isArray(resultat.matcha_texter) ? resultat.matcha_texter
+        : (resultat.matcha_text ? [resultat.matcha_text] : []);
+      if(soklista.length){
         let bockade = 0, missade = 0;
         for(const s of soklista){
           const sok = String(s || '').toLowerCase();
@@ -1812,9 +1816,10 @@ const App = {
           if(match){ match.klar = true; match.klarNar = new Date().toISOString(); bockade++; }
           else missade++;
         }
-        if(bockade){ save(); schedulePosterPush(); renderBevaka(); }
+        if(bockade) andrat = true;
         if(!bockade && missade) extra = ' (Jag hittade ingen bevakning som matchade, så inget bockades av.)';
       }
+      if(andrat){ save(); schedulePosterPush(); renderBevaka(); }
       loggaMeddelande('prata', 'ass', resultat.svar + extra);
       if(viaRost) talUpp(resultat.svar);
     }catch(e){
