@@ -13,12 +13,12 @@ Vardagskoll (barnens schema)      ─┘         ▲
                     läser mejlen + skriver morgonbriefen
 ```
 
-- **Skrivbordet** (skrivbordet.vercel.app) äger kontot och databasen. Under *Profil* skapas en **assistentkod** (XXXX-XXXX).
-- **Assistenten** (den här appen) kopplas med koden under *Mer* och läser/skriver via `https://skrivbordet.vercel.app/api/assistent`.
-- **Vardagskoll** kopplas med samma kod under *Mer* och skickar upp barnens schema (vilka dagar barnen är hos dig, gympadagar, matplan, städschema).
-- **Morgonjobbet** är en schemalagd Claude-uppgift på datorn som varje morgon läser mejlen, hämtar läget via API:t och skriver dagens brief.
+- **Skrivbordet** (skrivbordet.vercel.app) äger kontot och databasen (Supabase-inloggning med e-post/lösenord).
+- **Assistenten** (den här appen) och **Vardagskoll** loggar in med **samma e-post och lösenord** — ett gemensamt medlemskap, ingen kod att klistra in. Alla API-anrop skickar `Authorization: Bearer <access_token>`. Assistenten och Vardagskoll ligger på samma GitHub Pages-ursprung, så en inloggning i den ena gäller automatiskt i den andra också.
+- **Vardagskoll** skickar upp barnens schema (vilka dagar barnen är hos dig, gympadagar, matplan, städschema).
+- **Morgonjobbet** är en schemalagd Claude-uppgift på datorn som varje morgon läser mejlen, hämtar läget via API:t och skriver dagens brief. Det körs oberoende av Anna och använder en äldre, kvarhållen **assistentkod**-väg i `api/assistent.js`/`api/delat.js` (en scopead kod passar bättre för ett obemannat skript än att lagra det riktiga lösenordet).
 
-Koden ger tillgång till assistentens egna nycklar plus läskopior av jobbresor och karriärmål — aldrig profil, ämnen eller något annat på kontot (se `api/assistent.js` i skrivbordet-repot).
+Bearer-token identifierar direkt vem det är; assistentens egna nycklar plus läskopior av jobbresor och karriärmål är allt som går att nå den här vägen — aldrig profil, ämnen eller något annat på kontot (se `api/assistent.js` i skrivbordet-repot).
 
 ## Dataformat (kv_store-nycklar på kontot)
 
@@ -32,7 +32,7 @@ Koden ger tillgång till assistentens egna nycklar plus läskopior av jobbresor 
 - `assistent-profil` — `{ uppdaterad, text }` — assistentens egna anteckningar om Anna, skrivs av morgonjobbet och läses av chattarna; visas aldrig i appens gränssnitt
 - `assistent-samtal-ÅÅÅÅ-MM` — samtalsloggen per månad `[{ id, t, roll: jag|ass, kanal: prata|ekonomi, text }]`; skrivs via `logga`-operationen (dubblettskydd på id), raderas bara via `radera_samtal`
 
-Båda chattarna — "Prata med mig" på förstasidan och Ekonomi-flikens — skickar `POST { kod, ai: { system, messages } }` till samma API; servern vidarebefordrar till Anthropic och räknar anropet mot kontots dagliga AI-tak (delas med Skrivbordet).
+Båda chattarna — "Prata med mig" på förstasidan och Ekonomi-flikens — skickar `POST { ai: { system, messages } }` (med Bearer-token) till samma API; servern vidarebefordrar till Anthropic och räknar anropet mot kontots dagliga AI-tak (delas med Skrivbordet).
 
 Förstasidans chatt kan även användas med rösten: mikrofonknappen använder webbläsarens taligenkänning (`SpeechRecognition`, sv-SE) och svar på röstfrågor läses upp med `speechSynthesis`. Chatten känner till hela dagsläget (brief, bevakningar, barnens vecka, jobbresor, karriärmål, ekonomi, mejl) och kan lägga till och bocka av bevakningar via `action`-fältet i AI-svaret.
 
