@@ -854,22 +854,47 @@ function prataSystemPrompt(){
     'Ur mejlen: viktiga: ' + JSON.stringify((mejl.viktiga || []).slice(0, 8)) +
     ' obesvarade: ' + JSON.stringify((mejl.obesvarade || []).slice(0, 8)) +
     ' datum som hittats: ' + JSON.stringify((mejl.datumfynd || []).slice(0, 10)) + '\n\n' +
-    'Svara ALLTID med exakt ett JSON-objekt och ingen annan text:\n' +
-    '{\n' +
-    '  "svar": "ditt svar på svenska",\n' +
-    '  "bevakningar": [ { "omrade": "barn" | "karriar" | "hushall" | "halsa", "text": "...", "datum": "ÅÅÅÅ-MM-DD eller null" } ],\n' +
-    '  "matcha_texter": ["..."]\n' +
-    '}\n' +
+    'Du svarar genom att anropa verktyget "svara" med fälten svar, bevakningar och matcha_texter.\n' +
     'Regler:\n' +
     '- "svar" läses ofta upp högt: skriv naturligt talspråk i hela meningar, utan punktlistor, emojis eller specialtecken. Kort (1–3 meningar) om inte Anna ber om mer.\n' +
-    '- "bevakningar" och "matcha_texter" är OBEROENDE av varandra och kan båda vara ifyllda I SAMMA SVAR — det finns inget separat "action"-fält att välja mellan. Ska du både bocka av gamla poster OCH lägga in en ny (t.ex. slå ihop flera till en gemensam påminnelse): gör BÅDA i detta enda svar, aldrig "i nästa steg".\n' +
-    '- Ber Anna dig komma ihåg, bevaka eller påminna om saker: lägg EN post PER sak i listan "bevakningar" — även om det är många på en gång, lägg in ALLA i samma svar, aldrig en i taget. Rimligt omrade och datum per post (tolka "imorgon", "på torsdag" osv utifrån dagens datum; null om inget datum nämns).\n' +
+    '- "bevakningar" och "matcha_texter" är OBEROENDE av varandra och kan båda vara ifyllda I SAMMA ANROP. Ska du både bocka av gamla poster OCH lägga in en ny (t.ex. slå ihop flera till en gemensam påminnelse): gör BÅDA i detta enda anrop, aldrig "i nästa steg".\n' +
+    '- Ber Anna dig komma ihåg, bevaka eller påminna om saker: lägg EN post PER sak i listan "bevakningar" — även om det är många på en gång, lägg in ALLA i samma anrop, aldrig en i taget. Rimligt omrade och datum per post (tolka "imorgon", "på torsdag" osv utifrån dagens datum; null om inget datum nämns).\n' +
     '- Säger Anna att en eller flera saker är gjorda/klara (eller ska slås ihop till en ny): lista i "matcha_texter" en ordagrann del av varje befintlig bevaknings text som ska bockas av, och lägg samtidigt in ersättaren i "bevakningar" om en sådan efterfrågas. Finns ingen träff, ställ en följdfråga i stället — men gissa inte och lova aldrig ett kommande steg.\n' +
-    '- Du kan ALDRIG utföra något i ett senare svar än detta — det finns inget "nästa steg" du kommer ihåg. Antingen gör du hela ändringen nu, i just detta JSON-objekt, eller så frågar du Anna om något du behöver veta först. Säg aldrig "jag lägger in det i nästa steg" eller liknande.\n' +
+    '- Du kan ALDRIG utföra något i ett senare svar än detta — det finns inget "nästa steg" du kommer ihåg. Antingen gör du hela ändringen nu, i just detta anrop, eller så frågar du Anna om något du behöver veta först. Säg aldrig "jag lägger in det i nästa steg" eller liknande.\n' +
     '- Fakturor, räkningar och saldon sköts i fliken Ekonomi — hänvisa dit i "svar".\n' +
-    '- Är något oklart: action null och en kort följdfråga.\n' +
+    '- Är något oklart: lämna bevakningar/matcha_texter tomma och ställ en kort följdfråga i "svar".\n' +
     '- Gissa aldrig om sådant som inte finns i underlaget — säg hellre att du inte vet.';
 }
+
+/* Tvingar strukturerat svar via ett Anthropic-verktyg i stället för att be
+   modellen "skriv bara JSON" i fritext — den instruktionen visade sig
+   opålitlig under tunga uppgifter (t.ex. att slå ihop många bevakningar):
+   modellen kunde svara i vanlig prosa i stället, så inga ändringar
+   applicerades trots att svaret lät klart. Se api/assistent.js. */
+const PRATA_TOOL = {
+  name: 'svara',
+  description: 'Ge ett svar till Anna, och lägg till och/eller bocka av bevakningar om det behövs.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      svar: { type: 'string', description: 'Svaret till Anna, på svenska, naturligt talspråk.' },
+      bevakningar: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            omrade: { type: 'string', enum: ['barn', 'karriar', 'hushall', 'halsa'] },
+            text: { type: 'string' },
+            datum: { type: ['string', 'null'] }
+          },
+          required: ['text']
+        }
+      },
+      matcha_texter: { type: 'array', items: { type: 'string' } }
+    },
+    required: ['svar']
+  }
+};
 
 /* ================= Lär känna mig: intervjuerna ================= */
 /* Tre frågeformulär med fasta frågor och fält att fylla i själv — inget
@@ -1217,14 +1242,7 @@ function ekoSystemPrompt(){
     JSON.stringify(ekoArkiv().slice(0, 20).map(p => ({ typ: p.typ, beskrivning: p.beskrivning, belopp: p.belopp, klar: String(p.klarNar || '').slice(0, 10) }))) + '\n\n' +
     'Kända kontosaldon:\n' + JSON.stringify(state.ekonomiSaldon) + '\n\n' +
     'Användaren berättar i vardagligt språk om fakturor, räkningar och saldon, eller ställer frågor om läget.\n' +
-    'Svara ALLTID med exakt ett JSON-objekt och ingen annan text:\n' +
-    '{\n' +
-    '  "svar": "kort, vänligt svar på svenska",\n' +
-    '  "action": "ny_post" | "uppdatera_saldo" | "markera_klar" | null,\n' +
-    '  "post": { "typ": "in" | "ut", "beskrivning": "...", "belopp": tal, "forfallodatum": "ÅÅÅÅ-MM-DD", "redan_klar": true/false },\n' +
-    '  "saldo": { "konto": "...", "belopp": tal },\n' +
-    '  "matcha_beskrivning": "..."\n' +
-    '}\n' +
+    'Du svarar genom att anropa verktyget "svara" med fälten svar, action, post, saldo och matcha_beskrivning.\n' +
     'Regler:\n' +
     '- "post" bara vid action "ny_post", "saldo" bara vid "uppdatera_saldo", "matcha_beskrivning" bara vid "markera_klar" (ordagrann del av den befintliga postens beskrivning).\n' +
     '- typ "in" = pengar användaren ska få in (t.ex. en faktura hon skickat till en kund); typ "ut" = en räkning hon ska betala.\n' +
@@ -1232,9 +1250,35 @@ function ekoSystemPrompt(){
     '- Skriv en tydlig, kort beskrivning (t.ex. "Faktura till [kund]" eller "Elräkning"), inte en ordagrann upprepning av användarens mening.\n' +
     '- Tolka relativa datum (imorgon, på fredag, nästa vecka) utifrån dagens datum. Vid "redan_klar" utan tydligt datum: använd dagens datum.\n' +
     '- Belopp anges som rent tal i kronor, utan tusentalsavgränsare.\n' +
-    '- Om något saknas eller är oklart (belopp, datum): sätt "action" till null och ställ en kort följdfråga i "svar".\n' +
-    '- Vid frågor om läget: räkna på posterna ovan och sammanfatta i "svar", "action" null.';
+    '- Om något saknas eller är oklart (belopp, datum): lämna action tom och ställ en kort följdfråga i "svar".\n' +
+    '- Vid frågor om läget: räkna på posterna ovan och sammanfatta i "svar", ingen action.';
 }
+
+/* Se PRATA_TOOL ovan för varför strukturerat svar tvingas via verktyg. */
+const EKONOMI_TOOL = {
+  name: 'svara',
+  description: 'Ge ett svar till Anna om ekonomin, och lägg till en post, uppdatera ett saldo eller markera en post som klar om det behövs.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      svar: { type: 'string', description: 'Kort, vänligt svar på svenska.' },
+      action: { type: ['string', 'null'], enum: ['ny_post', 'uppdatera_saldo', 'markera_klar', null] },
+      post: {
+        type: 'object',
+        properties: {
+          typ: { type: 'string', enum: ['in', 'ut'] },
+          beskrivning: { type: 'string' },
+          belopp: { type: 'number' },
+          forfallodatum: { type: 'string' },
+          redan_klar: { type: 'boolean' }
+        }
+      },
+      saldo: { type: 'object', properties: { konto: { type: 'string' }, belopp: { type: 'number' } } },
+      matcha_beskrivning: { type: 'string' }
+    },
+    required: ['svar']
+  }
+};
 
 function ekoPostHtml(p){
   const nar = p.forfallodatum ? narText(p.forfallodatum) : null;
@@ -1752,6 +1796,7 @@ const App = {
       const { res, data } = await aiAnrop({ ai: {
         max_tokens: 4000,
         system: prataSystemPrompt(),
+        tool: PRATA_TOOL,
         messages: kanalMeddelanden('prata').slice(-16).map(m => ({
           role: m.roll === 'jag' ? 'user' : 'assistant',
           content: m.text
@@ -2018,6 +2063,7 @@ const App = {
       const { res, data } = await aiAnrop({ ai: {
         max_tokens: 4000,
         system: ekoSystemPrompt(),
+        tool: EKONOMI_TOOL,
         messages: kanalMeddelanden('ekonomi').slice(-12).map(m => ({
           role: m.roll === 'jag' ? 'user' : 'assistant',
           content: m.text
