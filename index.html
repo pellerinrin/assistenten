@@ -296,6 +296,54 @@ function authHeaders(extra){
   return h;
 }
 
+/* Hämtar en giltig token inför ett anrop. Supabase-klienten förnyar själv
+   en token som håller på att gå ut, men om appen legat i bakgrunden kan
+   den ändå ha hunnit bli gammal — då syns det som 401 och anropet skulle
+   annars falla med ett generiskt "kom inte fram"-fel. */
+async function friskToken(){
+  try{
+    const { data } = await sb.auth.getSession();
+    if(data && data.session){ session = data.session; return data.session.access_token; }
+  }catch(e){ /* faller tillbaka på det vi har */ }
+  return accessToken();
+}
+
+/* Gör ett AI-anrop robust: färsk token, förnya + försök igen en gång vid
+   utgången session (401), och ett återförsök vid tillfälligt serverfel /
+   överbelastning. Returnerar { res, data } eller kastar vid nätverksfel. */
+async function aiAnrop(payload){
+  let sista = null;
+  for(let forsok = 0; forsok < 2; forsok++){
+    const token = await friskToken();
+    const headers = { 'Content-Type': 'application/json' };
+    if(token) headers.Authorization = 'Bearer ' + token;
+    let res;
+    try{
+      res = await fetch(API, { method: 'POST', headers: headers, body: JSON.stringify(payload) });
+    }catch(e){
+      if(forsok === 0){ await new Promise(r => setTimeout(r, 1200)); continue; }
+      throw e;
+    }
+    if(res.status === 401 && forsok === 0){
+      try{ await sb.auth.refreshSession(); }catch(e){}
+      continue; /* försök igen med förnyad token */
+    }
+    if(res.status >= 500 && forsok === 0){
+      await new Promise(r => setTimeout(r, 1200)); continue; /* tillfälligt serverfel — en gång till */
+    }
+    const data = await res.json().catch(() => null);
+    return { res: res, data: data };
+  }
+  return sista;
+}
+
+/* Känner igen Anthropics "kreditsaldot är slut"-fel, så vi kan säga det rakt
+   ut i stället för ett generiskt fel. */
+function aiCreditSlut(data){
+  const msg = data && (data.message || (data.error && data.error.message) || (typeof data.error === 'string' ? data.error : ''));
+  return /credit balance/i.test(msg || '');
+}
+
 /* ================= State ================= */
 const LS_KEY = 'assistenten-v1';
 const API = 'https://skrivbordet.vercel.app/api/assistent';
@@ -344,7 +392,14 @@ async function hamta(force){
     if(state.posterDirty) await pushPoster();
     if(state.ekonomiDirty) await pushEkonomi();
     if(state.utkorg.length) await pushLogg();
-    const res = await fetch(API, { headers: authHeaders() });
+    const token = await friskToken();
+    let res = await fetch(API, { headers: token ? { Authorization: 'Bearer ' + token } : {} });
+    if(res.status === 401){
+      /* token kan ha hunnit gå ut — förnya och försök en gång till */
+      try{ await sb.auth.refreshSession(); }catch(e){}
+      const t2 = await friskToken();
+      res = await fetch(API, { headers: t2 ? { Authorization: 'Bearer ' + t2 } : {} });
+    }
     if(res.status === 401){
       toast('⚠️ Du är utloggad — logga in igen på Idag-fliken');
       return;
@@ -1571,14 +1626,11 @@ const App = {
         '"typ" = "ut" om det är en räkning användaren ska betala, "in" om det är en faktura användaren själv skickat för att få betalt, null om oklart.\n' +
         'belopp = totalbeloppet i kronor, rent tal utan mellanslag, "kr" eller tusentalsavgränsare.\n' +
         'forfallodatum = sista betaldag om det finns, annars fakturadatum. Gissa aldrig — sätt null om något inte tydligt framgår.';
-      const res = await fetch(API, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ ai: { system: system, max_tokens: 400, messages: [{ role: 'user', content: [ block, { type: 'text', text: 'Plocka ut uppgifterna ur fakturan.' } ] }] } })
-      });
-      const data = await res.json().catch(() => null);
+      const { res, data } = await aiAnrop({ ai: { system: system, max_tokens: 400, messages: [{ role: 'user', content: [ block, { type: 'text', text: 'Plocka ut uppgifterna ur fakturan.' } ] }] } });
+      if(res.status === 401){ setStatus('Du verkar utloggad — logga in igen på Idag-fliken.'); return; }
       if(res.status === 429){ setStatus((data && data.message) || 'Dagens AI-gräns är nådd — fyll i själv.'); return; }
       if(res.status === 413){ setStatus('Filen är för stor att läsa av — fyll i själv.'); return; }
+      if(aiCreditSlut(data)){ setStatus('AI-kontots kredit verkar slut — fyll i själv.'); return; }
       if(!res.ok || !data || !data.text) throw new Error('http ' + res.status);
       const r = tolkaJSONObjekt(data.text);
       if(!r){ setStatus('Kunde inte tyda fakturan — fyll i själv.'); return; }
@@ -1695,21 +1747,24 @@ const App = {
     prataSkickar = true;
     renderIdag();
     try{
-      const res = await fetch(API, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ ai: {
-          max_tokens: 1500,
-          system: prataSystemPrompt(),
-          messages: kanalMeddelanden('prata').slice(-16).map(m => ({
-            role: m.roll === 'jag' ? 'user' : 'assistant',
-            content: m.text
-          }))
-        } })
-      });
-      const data = await res.json().catch(() => null);
+      const { res, data } = await aiAnrop({ ai: {
+        max_tokens: 1500,
+        system: prataSystemPrompt(),
+        messages: kanalMeddelanden('prata').slice(-16).map(m => ({
+          role: m.roll === 'jag' ? 'user' : 'assistant',
+          content: m.text
+        }))
+      } });
+      if(res.status === 401){
+        loggaMeddelande('prata', 'ass', 'Du verkar utloggad — logga in igen på Idag-fliken, så svarar jag som vanligt.');
+        return;
+      }
       if(res.status === 429){
         loggaMeddelande('prata', 'ass', (data && data.message) || 'Dagens AI-gräns är nådd — vi fortsätter imorgon.');
+        return;
+      }
+      if(aiCreditSlut(data)){
+        loggaMeddelande('prata', 'ass', 'AI-kontots kredit verkar slut — fyll på på console.anthropic.com, så svarar jag igen.');
         return;
       }
       if(!res.ok || !data || !data.text) throw new Error('http ' + res.status);
@@ -1880,16 +1935,10 @@ const App = {
         (profil ? '\nDina egna anteckningar om Anna (håll dem för dig själv):\n' + profil + '\n' : '') +
         '\nHär är Annas svar på ett antal frågor om ämnet:\n' + JSON.stringify(ihopsamlat) + '\n\n' +
         'Skriv ett utlåtande TILL dig själv (assistenten) om Anna, 120–250 ord på svenska, i tredje person, sakligt och varmt — det ska hjälpa dig stötta henne rätt i vardagen. Bygg bara på det hon faktiskt skrivit, hitta inget på. Svara ENBART med utlåtandets text, ingen rubrik, inga citattecken.';
-      const res = await fetch(API, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ ai: { system: system, max_tokens: 1200, messages: [{ role: 'user', content: 'Skriv utlåtandet.' }] } })
-      });
-      const data = await res.json().catch(() => null);
-      if(res.status === 429){
-        toast((data && data.message) || 'Dagens AI-gräns är nådd — försök igen imorgon.');
-        return;
-      }
+      const { res, data } = await aiAnrop({ ai: { system: system, max_tokens: 1200, messages: [{ role: 'user', content: 'Skriv utlåtandet.' }] } });
+      if(res.status === 401){ toast('Du verkar utloggad — logga in igen på Idag-fliken.'); return; }
+      if(res.status === 429){ toast((data && data.message) || 'Dagens AI-gräns är nådd — försök igen imorgon.'); return; }
+      if(aiCreditSlut(data)){ toast('AI-kontots kredit verkar slut — fyll på på console.anthropic.com.'); return; }
       if(!res.ok || !data || !data.text) throw new Error('http ' + res.status);
       intervju.utkast = data.text.trim();
       toast('Utkast klart — läs igenom och spara om det stämmer 🖋');
@@ -1955,21 +2004,24 @@ const App = {
     ekonomiSkickar = true;
     renderEkonomi();
     try{
-      const res = await fetch(API, {
-        method: 'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ ai: {
-          max_tokens: 1500,
-          system: ekoSystemPrompt(),
-          messages: kanalMeddelanden('ekonomi').slice(-12).map(m => ({
-            role: m.roll === 'jag' ? 'user' : 'assistant',
-            content: m.text
-          }))
-        } })
-      });
-      const data = await res.json().catch(() => null);
+      const { res, data } = await aiAnrop({ ai: {
+        max_tokens: 1500,
+        system: ekoSystemPrompt(),
+        messages: kanalMeddelanden('ekonomi').slice(-12).map(m => ({
+          role: m.roll === 'jag' ? 'user' : 'assistant',
+          content: m.text
+        }))
+      } });
+      if(res.status === 401){
+        loggaMeddelande('ekonomi', 'ass', 'Du verkar utloggad — logga in igen på Idag-fliken, så svarar jag som vanligt.');
+        return;
+      }
       if(res.status === 429){
         loggaMeddelande('ekonomi', 'ass', (data && data.message) || 'Dagens AI-gräns är nådd — vi fortsätter imorgon.');
+        return;
+      }
+      if(aiCreditSlut(data)){
+        loggaMeddelande('ekonomi', 'ass', 'AI-kontots kredit verkar slut — fyll på på console.anthropic.com, så svarar jag igen.');
         return;
       }
       if(!res.ok || !data || !data.text) throw new Error('http ' + res.status);
