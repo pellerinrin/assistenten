@@ -152,11 +152,16 @@ input:focus,select:focus,textarea:focus{outline:none; border-color:var(--bronze)
 .bubbla{max-width:82%; border-radius:12px; padding:8px 12px; font-size:14.5px; line-height:1.45}
 .bubbla.jag{align-self:flex-end; background:var(--green); color:#fdfbf4}
 .bubbla.ass{align-self:flex-start; background:var(--paper); border:1px solid var(--line)}
+.bubbla img{display:block; max-width:100%; max-height:180px; border-radius:8px; margin-bottom:6px; cursor:pointer}
 .chatt-form{display:flex; gap:8px}
 .chatt-form input{flex:1; min-width:0}
+.chatt-bifogad{display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink-soft); background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:6px 10px; margin-bottom:6px}
+.chatt-bifogad img{width:32px; height:32px; object-fit:cover; border-radius:6px; flex:none}
+.chatt-bifogad button{border:none; background:none; cursor:pointer; font-size:14px; color:var(--ink-dim); margin-left:auto; flex:none}
 .mik{
   border:1px solid var(--line); background:#fff; color:var(--ink); width:44px; flex:none;
   border-radius:11px; font-size:17px; cursor:pointer;
+  display:inline-flex; align-items:center; justify-content:center; min-height:44px;
 }
 .mik.lyssnar{border-color:var(--red); background:var(--red); color:#fff; animation:puls 1.2s ease-in-out infinite}
 @keyframes puls{50%{opacity:.55}}
@@ -371,6 +376,7 @@ let state = {
   ekonomiSaldon: [], /* kända kontosaldon: [{konto, belopp, uppdaterad}] */
   ekonomiDirty: false,
   briefDirty: false, /* osparad "avklarat"-markering på dagens brief */
+  visaFramtid: false, /* visa bevakningar som ligger långt fram i tiden */
   notified: {},
   visaKlara: false,
   samtal: [],        /* samtalslogg från kontot (servern är source of truth) */
@@ -488,8 +494,9 @@ async function pushBrief(){
    även om nätet strular mitt i ett samtal. ---- */
 let loggTimer = null;
 function loggaMeddelande(kanal, roll, text){
+  const id = 'm' + Date.now() + Math.random().toString(36).slice(2, 7);
   state.utkorg.push({
-    id: 'm' + Date.now() + Math.random().toString(36).slice(2, 7),
+    id: id,
     t: new Date().toISOString(),
     roll: roll,
     kanal: kanal,
@@ -498,6 +505,7 @@ function loggaMeddelande(kanal, roll, text){
   save();
   clearTimeout(loggTimer);
   loggTimer = setTimeout(pushLogg, 800);
+  return id;
 }
 function kanalMeddelanden(kanal){
   return state.samtal.filter(m => m.kanal === kanal)
@@ -647,12 +655,20 @@ function renderIdag(){
       '<button class="btn small ghost" style="align-self:center" onclick="App.visaAldre()">Visa äldre (' + (prataAlla.length - prataVisas.length) + ' till)</button>' : '') +
     (prataVisas.length ? '' : '<div class="bubbla ass">' + esc(HALSNING_PRATA) + '</div>') +
     prataVisas.map(m =>
-      '<div class="bubbla ' + (m.roll === 'jag' ? 'jag' : 'ass') + '">' + esc(m.text) +
+      '<div class="bubbla ' + (m.roll === 'jag' ? 'jag' : 'ass') + '">' +
+      (prataBildPreviews[m.id] ? '<img src="' + prataBildPreviews[m.id] + '" onclick="visaBildOverlay({typ:\'image/jpeg\',data:prataBildPreviews[\'' + m.id + '\'],namn:\'bild\'})">' : '') +
+      esc(m.text) +
       (m.roll === 'ass' && KAN_TALA ? ' <button class="las-upp" title="Läs upp" onclick="App.lasUpp(\'' + m.id + '\')">🔊</button>' : '') +
       '</div>').join('') +
     (prataSkickar ? '<div class="bubbla ass dim">skriver…</div>' : '') +
     '</div>' +
+    (prataBifogad ? '<div class="chatt-bifogad">' +
+      (prataBifogad.previewUrl ? '<img src="' + prataBifogad.previewUrl + '">' : '📄') +
+      '<span>' + esc(prataBifogad.namn) + '</span>' +
+      '<button onclick="App.prataTaBortBifogad()">✕</button></div>' : '') +
     '<div class="chatt-form">' +
+    '<label class="mik" title="Bifoga bild eller fil">📎' +
+    '<input type="file" accept="image/*,application/pdf" style="display:none" onchange="App.prataFilVald(this)"></label>' +
     (KAN_LYSSNA ? '<button class="mik" id="prataMik" title="Prata in" onclick="App.rostLyssna()">🎤</button>' : '') +
     '<input type="text" id="prataInput" placeholder="Fråga, eller be mig komma ihåg något…" onkeydown="if(event.key===\'Enter\')App.prataSkicka(false)">' +
     '<button class="btn" onclick="App.prataSkicka(false)">Skicka</button>' +
@@ -782,7 +798,14 @@ function renderBevaka(){
     '<button class="btn" onclick="App.nyPost()">Lägg till</button>' +
     '</div></div></div>';
 
-  const oppna = state.poster.filter(p => !p.klar);
+  /* bevakningar långt fram i tiden ligger och skvalpar annars i varje
+     områdeslista — de döljs tills det närmar sig (FRAMTID_DAGAR), och
+     dyker sedan upp av sig själva nästa gång listan ritas om */
+  const FRAMTID_DAGAR = 14;
+  const allaOppna = state.poster.filter(p => !p.klar);
+  const oppna = allaOppna.filter(p => !p.datum || dagarTill(p.datum) <= FRAMTID_DAGAR);
+  const framtida = allaOppna.filter(p => p.datum && dagarTill(p.datum) > FRAMTID_DAGAR)
+    .sort((a,b) => a.datum.localeCompare(b.datum));
   const klara = state.poster.filter(p => p.klar);
 
   for(const k of Object.keys(OMRADEN)){
@@ -804,8 +827,27 @@ function renderBevaka(){
     html += '</div>';
   }
 
-  if(!oppna.length){
+  if(!oppna.length && !framtida.length){
     html += '<div class="card center"><p class="small muted">Inga öppna bevakningar — skrivbordet är rent. 🕊️</p></div>';
+  }
+
+  if(framtida.length){
+    html += '<div class="card" style="padding-top:10px;padding-bottom:10px">' +
+      '<p class="small muted" style="cursor:pointer" onclick="App.toggleFramtid()">' +
+      (state.visaFramtid ? '▾' : '▸') + ' ' + framtida.length + ' kommande längre fram</p>';
+    if(state.visaFramtid){
+      for(const p of framtida){
+        const nar = narText(p.datum);
+        html += '<div class="post">' +
+          '<input type="checkbox" onchange="App.togglePost(\'' + p.id + '\')">' +
+          '<div class="p-text">' + (OMRADEN[p.omrade] ? OMRADEN[p.omrade].emoji + ' ' : '') + esc(p.text) +
+          '<div class="p-datum ' + nar.klass + '">' + esc(cap(nar.text)) + '</div>' +
+          '</div>' +
+          '<button class="p-bort" title="Ta bort" onclick="App.bortPost(\'' + p.id + '\')">✕</button>' +
+          '</div>';
+      }
+    }
+    html += '</div>';
   }
 
   if(klara.length){
@@ -838,6 +880,12 @@ const KAN_TALA = 'speechSynthesis' in window;
 const HALSNING_PRATA = 'Hej! Fråga mig om dagen — barnen, mejlen, pengarna, skrivandet — eller be mig komma ihåg något åt dig.';
 let visaHelaHistoriken = false;
 let prataSkickar = false;
+/* en bifogad bild/PDF som väntar på att skickas, samt bildförhandsvisningar
+   till redan skickade meddelanden — bara i minnet, sparas aldrig till
+   servern eller localStorage (jfr fakturabilagor: bilden är tillfällig,
+   det som sägs om den sparas för alltid i samtalsloggen som vanlig text) */
+let prataBifogad = null;
+let prataBildPreviews = {};
 let rostAktiv = false;
 let rostIgang = null;
 
@@ -1656,6 +1704,11 @@ const App = {
     save();
     renderBevaka();
   },
+  toggleFramtid(){
+    state.visaFramtid = !state.visaFramtid;
+    save();
+    renderBevaka();
+  },
   rensaKlara(){
     state.poster = state.poster.filter(p => !p.klar);
     save();
@@ -1857,25 +1910,72 @@ const App = {
     }
   },
   /* ---- prata med assistenten (förstasidan) ---- */
+  async prataFilVald(input){
+    const fil = input.files && input.files[0];
+    input.value = ''; /* så samma fil kan väljas igen senare */
+    if(!fil) return;
+    if(!session){ toast('Logga in först.'); return; }
+    const filtyp = fil.type || '';
+    try{
+      if(filtyp.startsWith('image/')){
+        const dataUrl = await komprimeraBild(fil);
+        if(!dataUrl){ toast('Kunde inte läsa bilden.'); return; }
+        prataBifogad = {
+          block: { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: dataUrl.split(',')[1] } },
+          previewUrl: dataUrl,
+          namn: fil.name || 'bild'
+        };
+      } else if(filtyp === 'application/pdf'){
+        if(fil.size > 2500000){ toast('PDF:en är för stor att bifoga.'); return; }
+        const dataUrl = await new Promise((res) => {
+          const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => res(null); fr.readAsDataURL(fil);
+        });
+        if(!dataUrl){ toast('Kunde inte läsa filen.'); return; }
+        prataBifogad = {
+          block: { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: dataUrl.split(',')[1] } },
+          previewUrl: null,
+          namn: fil.name || 'dokument'
+        };
+      } else {
+        toast('Den filtypen stöds inte — bifoga en bild eller PDF.');
+        return;
+      }
+      renderIdag();
+    }catch(e){
+      toast('Kunde inte läsa filen just nu.');
+    }
+  },
+  prataTaBortBifogad(){
+    prataBifogad = null;
+    renderIdag();
+  },
   async prataSkicka(viaRost){
     const el = document.getElementById('prataInput');
     const text = ((el && el.value) || '').trim();
-    if(!text || prataSkickar) return;
+    const bifogad = prataBifogad;
+    if((!text && !bifogad) || prataSkickar) return;
     if(el) el.value = '';
-    loggaMeddelande('prata', 'jag', text);
+    const loggText = text || '📷 (bifogade en bild eller fil)';
+    const meddelandeId = loggaMeddelande('prata', 'jag', loggText);
+    if(bifogad && bifogad.previewUrl) prataBildPreviews[meddelandeId] = bifogad.previewUrl;
+    prataBifogad = null;
     prataSkickar = true;
     renderIdag();
     try{
       /* rejäl budget: modellen tänker i osynliga block som räknas mot
          max_tokens — för snålt tak ger ett TOMT svar på tunga frågor */
+      const historik = kanalMeddelanden('prata').filter(m => m.id !== meddelandeId).slice(-15).map(m => ({
+        role: m.roll === 'jag' ? 'user' : 'assistant',
+        content: m.text
+      }));
+      const sistaContent = bifogad
+        ? [bifogad.block, { type: 'text', text: text || 'Vad ser du i den här bilden/filen?' }]
+        : loggText;
       const { res, data } = await aiAnrop({ ai: {
         max_tokens: 4000,
         system: prataSystemPrompt(),
         tool: PRATA_TOOL,
-        messages: kanalMeddelanden('prata').slice(-16).map(m => ({
-          role: m.roll === 'jag' ? 'user' : 'assistant',
-          content: m.text
-        }))
+        messages: historik.concat([{ role: 'user', content: sistaContent }])
       } });
       if(res.status === 401){
         loggaMeddelande('prata', 'ass', 'Du verkar utloggad — logga in igen på Idag-fliken, så svarar jag som vanligt.');
