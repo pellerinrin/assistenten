@@ -993,6 +993,7 @@ function renderIntervju(){
 const HALSNING_EKONOMI = 'Hej! Säg till när en faktura eller räkning dyker upp, eller fråga hur läget ser ut.';
 let ekonomiSkickar = false;
 let ekoForm = { open: false, typ: 'ut' };
+let ekoValdFil = null; /* fakturabilagan Anna fotat/valt, oberoende av vilken knapp */
 let visaEkoArkiv = false;
 
 /* aktuella respektive avklarade poster — avklarade arkiveras för alltid,
@@ -1237,10 +1238,16 @@ function renderEkonomi(){
       '<input type="number" id="ekoBelopp" placeholder="Belopp" style="flex:1;min-width:110px">' +
       '<input type="date" id="ekoDatum" style="flex:1">' +
       '</div>' +
-      '<label class="small muted" style="cursor:pointer">📎 Foto eller PDF på fakturan — jag läser av belopp och datum åt dig ' +
-      '<input type="file" id="ekoFil" accept="image/*,application/pdf" style="display:block;margin-top:4px" onchange="App.ekoFilVald(this)"></label>' +
+      '<p class="small muted" style="margin:2px 0 0">Fota fakturan så läser jag av belopp och datum åt dig:</p>' +
+      '<div class="knapprad" style="margin-top:6px">' +
+      '<label class="btn small ghost" style="cursor:pointer">📷 Ta foto' +
+      '<input type="file" accept="image/*" capture="environment" style="display:none" onchange="App.ekoFilVald(this)"></label>' +
+      '<label class="btn small ghost" style="cursor:pointer">📎 Välj bild eller PDF' +
+      '<input type="file" accept="image/*,application/pdf" style="display:none" onchange="App.ekoFilVald(this)"></label>' +
+      '</div>' +
+      '<p id="ekoFilNamn" class="small" style="margin:6px 0 0">' + (ekoValdFil ? '📎 ' + esc(ekoValdFil.name || 'fakturan') : '') + '</p>' +
       '<p id="ekoFilStatus" class="small" style="margin:2px 0 0;color:var(--bronze)"></p>' +
-      '<p class="small dim" style="margin:0">Bilden sparas så länge posten är aktuell och raderas när den bockas av — uppgifterna arkiveras för alltid.</p>' +
+      '<p class="small dim" style="margin:2px 0 0">Bilden sparas så länge posten är aktuell och raderas när den bockas av — uppgifterna arkiveras för alltid.</p>' +
       '<div class="knapprad">' +
       '<button class="btn" onclick="App.ekoNy()">Spara</button>' +
       '<button class="btn ghost" onclick="App.ekoVisaForm(false)">Avbryt</button>' +
@@ -1485,6 +1492,7 @@ const App = {
   /* ---- ekonomi ---- */
   ekoVisaForm(open){
     ekoForm.open = open;
+    ekoValdFil = null; /* nytt formulär börjar utan bilaga */
     renderEkonomi();
     if(open){ const el = document.getElementById('ekoBeskr'); if(el) el.focus(); }
   },
@@ -1500,6 +1508,9 @@ const App = {
   async ekoFilVald(input){
     const fil = input.files && input.files[0];
     if(!fil) return;
+    ekoValdFil = fil; /* denna bilaga sparas när posten sparas, oavsett knapp */
+    const namnEl = document.getElementById('ekoFilNamn');
+    if(namnEl) namnEl.textContent = '📎 ' + (fil.name || 'fakturan');
     const setStatus = (t) => { const s = document.getElementById('ekoFilStatus'); if(s) s.textContent = t; };
     if(!session){ setStatus('Logga in först.'); return; }
     const filtyp = fil.type || '';
@@ -1561,8 +1572,7 @@ const App = {
     const beskr = document.getElementById('ekoBeskr').value.trim();
     const belopp = Number(document.getElementById('ekoBelopp').value);
     const datum = document.getElementById('ekoDatum').value || '';
-    const filEl = document.getElementById('ekoFil');
-    const fil = filEl && filEl.files && filEl.files[0];
+    const fil = ekoValdFil;
     if(!beskr || !belopp || !datum){ toast('Fyll i beskrivning, belopp och datum'); return; }
     const id = 'e' + Date.now() + Math.random().toString(36).slice(2, 5);
     state.ekonomiPoster.push({
@@ -1571,6 +1581,7 @@ const App = {
       forfallodatum: datum, status: 'väntar'
     });
     ekoForm.open = false;
+    ekoValdFil = null;
     save();
     scheduleEkonomiPush();
     renderEkonomi();
