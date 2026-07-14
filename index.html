@@ -192,10 +192,45 @@ input:focus,select:focus,textarea:focus{outline:none; border-color:var(--bronze)
 .tabs button{
   border:none; background:none; color:var(--ink-dim); cursor:pointer;
   display:flex; flex-direction:column; align-items:center; gap:1px;
-  font-size:19px; padding:4px 14px; border-radius:10px;
+  font-size:19px; padding:4px 9px; border-radius:10px;
 }
 .tabs button span{font-size:11px; letter-spacing:.02em}
 .tabs button.aktiv{color:var(--green); background:#eef0e6}
+
+/* ---- planer ---- */
+.plan{padding:10px 2px; border-top:1px solid var(--line-soft)}
+.plan:first-of-type{border-top:none}
+.plan .pl-huvud{display:flex; align-items:baseline; gap:8px}
+.plan .pl-vem{font-weight:600}
+.plan .pl-vad{color:var(--ink-soft); flex:1}
+.plan .pl-rad2{font-size:12.5px; color:var(--ink-dim); margin-top:2px}
+.plan .pl-oavklarat{font-size:13px; color:var(--bronze); margin-top:3px}
+.plan details{margin-top:5px}
+.plan details summary{font-size:12.5px; color:var(--ink-dim); cursor:pointer}
+.plan .pl-citat{font-size:13px; color:var(--ink-soft); font-style:italic; border-left:2px solid var(--line); padding-left:9px; margin-top:5px; white-space:pre-wrap}
+.statusrad{display:flex; gap:5px; flex-wrap:wrap; margin-top:7px}
+.statusrad button{
+  border:1px solid var(--line); background:#fff; color:var(--ink-dim);
+  border-radius:999px; padding:3px 10px; font-size:12px; cursor:pointer;
+}
+.statusrad button.vald{border-color:var(--green); background:var(--green); color:#fff}
+.forslag-ruta{background:var(--paper); border:1px dashed var(--line); border-radius:10px; padding:9px 11px; margin-top:8px; font-size:14px}
+.forslag-ruta .fr-text{font-family:Georgia,serif; font-style:italic}
+
+/* ---- pengaläget ---- */
+.pengarad{display:flex; align-items:baseline; gap:8px; margin:4px 0}
+.pengarad .pr-stor{font-family:Georgia,serif; font-weight:600; font-size:26px}
+.pengarad .pr-enhet{color:var(--ink-soft); font-size:13.5px}
+
+/* ---- hemifrån ---- */
+.hemsaker{font-size:16px; line-height:1.7}
+.hemsaker b{font-weight:600}
+.dagvalj{display:flex; gap:5px}
+.dagvalj button{
+  border:1px solid var(--line); background:#fff; color:var(--ink-dim); flex:1;
+  border-radius:8px; padding:6px 0; font-size:12.5px; cursor:pointer;
+}
+.dagvalj button.vald{border-color:var(--green); background:var(--green); color:#fff}
 
 /* ---- toast ---- */
 #toast{
@@ -219,6 +254,7 @@ input:focus,select:focus,textarea:focus{outline:none; border-color:var(--bronze)
 <main>
   <div id="view-idag" class="view"></div>
   <div id="view-bevaka" class="view"></div>
+  <div id="view-planer" class="view"></div>
   <div id="view-ekonomi" class="view"></div>
   <div id="view-mejl" class="view"></div>
   <div id="view-mer" class="view"></div>
@@ -228,6 +264,7 @@ input:focus,select:focus,textarea:focus{outline:none; border-color:var(--bronze)
 <nav class="tabs">
   <button id="tab-idag" onclick="App.go('idag')">☕<span>Idag</span></button>
   <button id="tab-bevaka" onclick="App.go('bevaka')">🗒️<span>Bevaka</span></button>
+  <button id="tab-planer" onclick="App.go('planer')">💛<span>Planer</span></button>
   <button id="tab-ekonomi" onclick="App.go('ekonomi')">💰<span>Ekonomi</span></button>
   <button id="tab-mejl" onclick="App.go('mejl')">✉️<span>Mejl</span></button>
   <button id="tab-mer" onclick="App.go('mer')">⚙️<span>Mer</span></button>
@@ -283,7 +320,8 @@ function toast(msg){
 /* ================= Livsområden ================= */
 const OMRADEN = {
   barn:    { namn: 'Barnen',            emoji: '🧸' },
-  karriar: { namn: 'Karriär',           emoji: '✒️' },
+  karriar: { namn: 'Jobb & karriär',    emoji: '✒️' },
+  vanner:  { namn: 'Vänner & socialt',  emoji: '💛' },
   hushall: { namn: 'Hushåll & ekonomi', emoji: '🏡' },
   halsa:   { namn: 'Hälsa & privat',    emoji: '🌿' },
 };
@@ -292,7 +330,8 @@ const OMRADEN = {
 function gissaOmrade(rubrik){
   const r = String(rubrik || '').toLowerCase();
   if(r.includes('barn')) return 'barn';
-  if(r.includes('karriär') || r.includes('karriar') || r.includes('skriv') || r.includes('deadline')) return 'karriar';
+  if(r.includes('vän') || r.includes('kalas') || r.includes('fest') || r.includes('middag med')) return 'vanner';
+  if(r.includes('karriär') || r.includes('karriar') || r.includes('jobb') || r.includes('deadline')) return 'karriar';
   if(r.includes('hälsa') || r.includes('halsa')) return 'halsa';
   return 'hushall';
 }
@@ -376,6 +415,7 @@ let state = {
   ekonomiSaldon: [], /* kända kontosaldon: [{konto, belopp, uppdaterad}] */
   ekonomiDirty: false,
   briefDirty: false, /* osparad "avklarat"-markering på dagens brief */
+  appdataDirty: false, /* osparade ändringar i appdata (ägare, planer, ekonomigrund, hemifrån) */
   visaFramtid: false, /* visa bevakningar som ligger långt fram i tiden */
   notified: {},
   visaKlara: false,
@@ -413,6 +453,7 @@ async function hamta(force){
     if(state.posterDirty) await pushPoster();
     if(state.ekonomiDirty) await pushEkonomi();
     if(state.briefDirty) await pushBrief();
+    if(state.appdataDirty) await pushAppdata();
     if(state.utkorg.length) await pushLogg();
     const token = await friskToken();
     let res = await fetch(API, { headers: token ? { Authorization: 'Bearer ' + token } : {} });
@@ -427,7 +468,11 @@ async function hamta(force){
       return;
     }
     if(!res.ok) throw new Error('http ' + res.status);
+    /* hann appdata bli smutsig igen medan vi hämtade får den lokala
+       versionen av intervjuer-objektet inte skrivas över av serverns */
+    const lokalIv = state.appdataDirty ? (state.data && state.data.intervjuer) : null;
     state.data = await res.json() || {};
+    if(lokalIv) state.data.intervjuer = lokalIv;
     state.dataTid = Date.now();
     if(!state.posterDirty) state.poster = Array.isArray(state.data.poster) ? state.data.poster : [];
     if(!state.ekonomiDirty){
@@ -488,7 +533,7 @@ async function pushBrief(){
   }
 }
 
-/* profilen är assistentens egna anteckningar om Anna — morgonbriefen skriver
+/* profilen är assistentens egna anteckningar om ägaren — morgonbriefen skriver
    om den varje dag, men chatten kan lägga till en rad direkt ("anteckning" i
    svara-verktyget) så ett "jag ska komma ihåg det" faktiskt fastnar */
 async function pushProfil(){
@@ -504,8 +549,192 @@ async function pushProfil(){
   }
 }
 
-/* ---- samtalsloggen: allt som sägs mellan Anna och assistenten sparas på
-   kontot och försvinner aldrig (utom när Anna själv raderar det under Mer).
+/* ---- appdata: allt kontoegna innehåll som appen själv äger — vem ägaren
+   är (namn + beskrivning som styr assistentens ton och kunskap), sociala
+   planer, ekonomigrunden (golvlön/lönedag/fasta utgifter) och hemifrån-
+   listorna. Servern skickar bara tillbaka en fast uppsättning nycklar,
+   så allt detta bor som fältet "appdata" INUTI assistent-intervjuer —
+   den enda nyckel appen både läser och skriver i sin helhet. ---- */
+function appdata(){
+  const iv = state.data && state.data.intervjuer;
+  return (iv && iv.appdata) || {};
+}
+let appdataTimer = null;
+function sparaAppdata(patch){
+  /* skrivningen ersätter hela intervjuer-objektet på kontot — innan första
+     hämtningen är klar skulle en tom lokal kopia radera det som redan finns */
+  if(session && !state.dataTid){
+    toast('⏳ Vänta en liten stund — jag hämtar kontot först');
+    return false;
+  }
+  if(!state.data) state.data = {};
+  const iv = state.data.intervjuer = Object.assign({}, state.data.intervjuer || {});
+  iv.appdata = Object.assign({}, iv.appdata || {}, patch, { uppdaterad: new Date().toISOString() });
+  state.appdataDirty = true;
+  save();
+  clearTimeout(appdataTimer);
+  appdataTimer = setTimeout(pushAppdata, 900);
+  return true;
+}
+async function pushAppdata(){
+  if(!session || !state.data || !state.data.intervjuer) return;
+  try{
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ skriv: { 'assistent-intervjuer': state.data.intervjuer } })
+    });
+    if(!res.ok) throw new Error('http ' + res.status);
+    state.appdataDirty = false;
+    save();
+  }catch(e){
+    /* försök igen vid nästa hämtning */
+  }
+}
+
+/* ---- ägaren: den som är inloggad. Namn och beskrivning vävs in i alla
+   AI-prompter, så samma app blir en personlig assistent för vem som helst
+   som skapar ett konto. ---- */
+function agare(){ return appdata().agare || null; }
+function agNamn(){ const a = agare(); return ((a && a.namn) || '').trim(); }
+/* svensk genitiv: "Annas", men "Jonas’" — och "användarens" när inget namn finns */
+function genitiv(namn){
+  if(!namn) return 'användarens';
+  return /[sxz]$/i.test(namn) ? namn + '’' : namn + 's';
+}
+function agRad(){
+  const a = agare();
+  if(!a || !a.beskrivning) return '';
+  return 'Om ' + (agNamn() || 'användaren') + ': ' + a.beskrivning + '\n';
+}
+
+/* ---- ekonomigrunden: golvlön, lönedag och fasta utgifter. Ur dem räknas
+   de två siffror som betyder något: kr/dag till lön och buffert i dagar.
+   Aldrig skäll, aldrig röda siffror — appen konstaterar och räknar om. ---- */
+function ekoGrund(){ return appdata().ekonomi || null; }
+function nastaLonedatum(){
+  const g = ekoGrund();
+  if(!g || !g.lonedag) return null;
+  const t = todayDate();
+  const dag = Math.max(1, Math.min(28, Number(g.lonedag)));
+  let d = new Date(t.getFullYear(), t.getMonth(), dag);
+  if(d <= t) d = new Date(t.getFullYear(), t.getMonth() + 1, dag);
+  return d;
+}
+function huvudSaldo(){
+  return state.ekonomiSaldon.find(s => !/buffert/i.test(s.konto)) || null;
+}
+function buffertSaldo(){
+  return state.ekonomiSaldon.find(s => /buffert/i.test(s.konto)) || null;
+}
+/* kvar-till-lön = saldot minus räkningar som förfaller före lönedagen,
+   delat med dagarna dit — EN siffra, uppdateras när saldot fylls i */
+function dagsbudget(){
+  const s = huvudSaldo();
+  const lon = nastaLonedatum();
+  if(!s || !lon) return null;
+  const lonDs = fmtDate(lon);
+  const dagar = Math.max(1, dagarTill(lonDs));
+  const rakningar = ekoAktiva()
+    .filter(p => p.typ !== 'in' && p.forfallodatum && p.forfallodatum < lonDs)
+    .reduce((sum, p) => sum + (Number(p.belopp) || 0), 0);
+  const kvar = (Number(s.belopp) || 0) - rakningar;
+  return { perDag: Math.floor(kvar / dagar), kvar: kvar, dagar: dagar, rakningar: rakningar, lonedatum: lonDs };
+}
+/* "du klarar X dagar utan inkomst" — bufferten mätt i dagar, inte kronor;
+   golvlönen är per definition vad en månad kostar */
+function buffertDagar(){
+  const g = ekoGrund();
+  const b = buffertSaldo();
+  if(!g || !g.golvlon || !b) return null;
+  return Math.floor((Number(b.belopp) || 0) / (Number(g.golvlon) / 30));
+}
+/* efter lön: frågan ställs en gång per månad, dagarna närmast efter lönedagen */
+function lonFragaAktuell(){
+  const g = ekoGrund();
+  if(!g || !g.lonedag || !g.golvlon) return false;
+  const t = todayDate();
+  const man = t.getFullYear() + '-' + pad2(t.getMonth() + 1);
+  if(g.lonKollad === man) return false;
+  const diff = t.getDate() - Math.max(1, Math.min(28, Number(g.lonedag)));
+  return diff >= 0 && diff <= 6;
+}
+
+/* ---- sociala planer: appens privata minne av det som sägs i SMS/WhatsApp.
+   Varje plan har exakt en status — det är mittenläget ("vi borde ses snart"
+   som ligger kvar i sex veckor) appen finns för att fånga. ---- */
+const PLAN_STATUS = {
+  namnd:      { namn: 'Nämnd',       kort: 'bara nämnt' },
+  foreslagen: { namn: 'Föreslagen',  kort: 'väntar på svar' },
+  bekraftad:  { namn: 'Bekräftad',   kort: 'båda har sagt ja' },
+  kalender:   { namn: 'I kalendern', kort: 'inbokat' },
+};
+function planerLista(){ return Array.isArray(appdata().planer) ? appdata().planer : []; }
+function planerSpara(planer){ return sparaAppdata({ planer: planer }); }
+/* planer som legat i "nämnd" i tre veckor — den enda knuffregeln */
+function planerSomVilar(){
+  const grans = new Date(Date.now() - 21 * 24 * 3600 * 1000).toISOString();
+  return planerLista().filter(p => !p.klar && p.status === 'namnd' && String(p.uppdaterad || p.skapad || '') < grans);
+}
+/* tre lediga datum inom två veckor — helgdagar först, sedan vardagkvällar.
+   "Ledig" = ingen bevakning, bekräftad plan eller kalenderplan på dagen. */
+function forslagDatum(){
+  const upptaget = new Set();
+  for(const p of state.poster) if(!p.klar && p.datum) upptaget.add(p.datum);
+  for(const p of planerLista()) if(!p.klar && p.datum && (p.status === 'bekraftad' || p.status === 'kalender')) upptaget.add(p.datum);
+  const helg = [], vardag = [];
+  for(let i = 2; i <= 16; i++){
+    const d = addDays(todayDate(), i);
+    const ds = fmtDate(d);
+    if(upptaget.has(ds)) continue;
+    (wIdx(d) >= 4 ? helg : vardag).push(d);
+  }
+  return helg.slice(0, 2).concat(vardag.slice(0, 1)).sort((a, b) => a - b).slice(0, 3);
+}
+/* färdig text att kopiera — tre konkreta alternativ, aldrig "när passar det?" */
+function forslagText(){
+  const KORT = ['mån','tis','ons','tors','fre','lör','sön'];
+  const datum = forslagDatum().map(d => KORT[wIdx(d)] + ' ' + d.getDate() + '/' + (d.getMonth() + 1));
+  if(!datum.length) return 'kan du någon dag nästa vecka, typ 18?';
+  if(datum.length === 1) return 'kan du ' + datum[0] + ', typ 18?';
+  return 'kan du ' + datum.slice(0, -1).join(', ') + ' eller ' + datum[datum.length - 1] + ', typ 18?';
+}
+async function kopieraText(text){
+  try{
+    await navigator.clipboard.writeText(text);
+    toast('Kopierat — klistra in i chatten 💬');
+  }catch(e){
+    /* äldre webbläsare / http: markera i ett osynligt fält i stället */
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try{ document.execCommand('copy'); toast('Kopierat — klistra in i chatten 💬'); }
+    catch(e2){ toast('Kunde inte kopiera — markera texten själv'); }
+    ta.remove();
+  }
+}
+
+/* ---- hemifrån-listor: kontextlistor (jobb, gym, handla …) som dyker upp
+   på startvyn i rätt ögonblick — en statisk lista att titta på i tre
+   sekunder, ingen checklista att bocka av i dörren. ---- */
+function hemifranLista(){ return Array.isArray(appdata().hemifran) ? appdata().hemifran : []; }
+let hemForm = null; /* pågående redigering under Mer: { id?, namn, saker, dagar, nar } */
+function hemifranNu(){
+  const t = new Date();
+  const timme = t.getHours();
+  const veckodag = wIdx(todayDate());
+  return hemifranLista().filter(l => {
+    if(Array.isArray(l.dagar) && l.dagar.length && !l.dagar.includes(veckodag)) return false;
+    if(l.nar === 'morgon') return timme >= 5 && timme < 11;
+    if(l.nar === 'dag') return timme >= 11 && timme < 17;
+    if(l.nar === 'kvall') return timme >= 17 && timme < 23;
+    return true; /* 'alltid' */
+  });
+}
+
+/* ---- samtalsloggen: allt som sägs mellan ägaren och assistenten sparas på
+   kontot och försvinner aldrig (utom när ägaren själv raderar det under Mer).
    Nya rader väntar i utkorgen tills servern kvitterat dem, så inget tappas
    även om nätet strular mitt i ett samtal. ---- */
 let loggTimer = null;
@@ -638,7 +867,7 @@ function renderIdag(){
   const ts = fmtDate(t);
   const d = state.data || {};
   const vk = d.vardagskoll || null;
-  /* bevara det Anna håller på att skriva i chatten när vyn ritas om */
+  /* bevara det ägaren håller på att skriva i chatten när vyn ritas om */
   const gammalInput = document.getElementById('prataInput');
   const inTxt = gammalInput ? gammalInput.value : '';
   const hadeFokus = !!gammalInput && document.activeElement === gammalInput;
@@ -646,8 +875,8 @@ function renderIdag(){
 
   if(!session){
     html += '<div class="card"><h2>Välkommen 🖋</h2>' +
-      '<p class="small muted">Jag är din assistent — jag håller ordning på barn, karriär, hushåll och allt däremellan, och lämnar en morgonbrief varje dag.</p>' +
-      '<p class="small muted" style="margin-top:8px">Logga in med samma e-post och lösenord som i Skrivbordet — ett och samma konto för alla appar.</p>' +
+      '<p class="small muted">Jag är din personliga assistent — jag håller ordning på vardagen: planer med vänner, pengar, bevakningar och allt däremellan.</p>' +
+      '<p class="small muted" style="margin-top:8px">Logga in, eller skapa ett eget konto med din e-post. (Använder du redan Skrivbordet eller Vardagskoll gäller samma inlogg här.)</p>' +
       '<div class="ny-form" style="margin-top:10px">' +
       '<input type="email" id="authEmail" placeholder="E-post" autocomplete="email">' +
       '<input type="password" id="authPass" placeholder="Lösenord" autocomplete="current-password" onkeydown="if(event.key===\'Enter\')App.loggaIn()">' +
@@ -660,6 +889,25 @@ function renderIdag(){
       '</div></div>';
     document.getElementById('view-idag').innerHTML = html;
     return;
+  }
+
+  /* ---- hemifrån: rätt lista i rätt ögonblick, överst där blicken landar ---- */
+  for(const l of hemifranNu()){
+    const saker = String(l.saker || '').split(',').map(s => s.trim()).filter(Boolean);
+    if(!saker.length) continue;
+    html += '<div class="card"><h2>🎒 Innan du går — ' + esc(l.namn) + '</h2>' +
+      '<p class="hemsaker">' + saker.map(esc).join(' · ') + '</p></div>';
+  }
+
+  /* ---- första inloggningen: vem är du? ---- */
+  if(state.dataTid && !agare()){
+    html += '<div class="card brief"><h2>Vem är du? 🖋</h2>' +
+      '<p class="small muted">Jag är din personliga assistent. Berätta lite om dig så formar jag mig efter just ditt liv — du kan ändra det när som helst under Mer.</p>' +
+      '<div class="ny-form" style="margin-top:10px">' +
+      '<input type="text" id="agNamn" placeholder="Ditt förnamn">' +
+      '<textarea id="agBeskr" style="min-height:90px" placeholder="Kort om dig: vad jobbar du med, hur ser livet ut, vad vill du ha hjälp med? T.ex. ”Kurator i Malmö. Vill få ordning på pengarna och bli bättre på att faktiskt ses med mina vänner.”"></textarea>' +
+      '<div class="knapprad"><button class="btn" onclick="App.agareSpara(false)">Så, nu känner du mig</button></div>' +
+      '</div></div>';
   }
 
   /* ---- prata med assistenten ---- */
@@ -714,7 +962,7 @@ function renderIdag(){
     html += '<p class="brief-sign">— din assistent</p></div>';
   } else {
     html += '<div class="card brief"><h2>☕ Morgonbrief</h2>' +
-      '<p class="small muted">Ingen brief ännu idag. Den skrivs på morgonen när din dator är igång' +
+      '<p class="small muted">Ingen brief ännu idag. Den skrivs av morgonjobbet — en schemalagd uppgift på en dator som läser mejlen och lämnar dagens brief här' +
       (b && b.datum ? ' — den senaste är från ' + esc(humanDate(parseDate(b.datum))) + '.' : '.') + '</p>';
     if(b && b.datum && b.halsning){
       html += '<details style="margin-top:8px"><summary class="small muted" style="cursor:pointer">Visa den senaste briefen</summary>' +
@@ -764,8 +1012,33 @@ function renderIdag(){
   if(lage){
     html += '<div class="card"><h2>Läget idag</h2>' + lage + '</div>';
   } else {
-    html += '<div class="card"><h2>Läget idag</h2><p class="small muted">Inget särskilt att rapportera. ' +
-      (vk ? '' : 'Logga in i Vardagskoll också (samma konto) så ser jag barnens schema.') + '</p></div>';
+    html += '<div class="card"><h2>Läget idag</h2><p class="small muted">Inget särskilt att rapportera.</p></div>';
+  }
+
+  /* ---- pengaläget: två siffror, aldrig skäll ---- */
+  const db = ekoGrund() ? dagsbudget() : null;
+  const bd = buffertDagar();
+  if(db || bd !== null){
+    html += '<div class="card"><h2>💸 Pengaläget</h2>';
+    if(db){
+      html += '<div class="pengarad"><span class="pr-stor">' + esc(new Intl.NumberFormat('sv-SE').format(db.perDag)) + ' kr/dag</span>' +
+        '<span class="pr-enhet">till lön — ' + db.dagar + (db.dagar === 1 ? ' dag' : ' dagar') + ' kvar</span></div>';
+    }
+    if(bd !== null){
+      html += '<p class="small muted">Bufferten räcker ungefär <b>' + bd + (bd === 1 ? ' dag' : ' dagar') + '</b> utan inkomst.</p>';
+    }
+    html += '</div>';
+  }
+
+  /* ---- planer som vilar: en mjuk knuff, aldrig skäll ---- */
+  const vilande = planerSomVilar();
+  if(vilande.length){
+    html += '<div class="card"><h2>💛 Hör av dig?</h2>';
+    for(const p of vilande.slice(0, 2)){
+      html += radHtml('💬', '<b>' + esc(p.vem) + '</b> — ”' + esc(p.vad) + '” har legat ett tag. Vill du föreslå ett datum?');
+    }
+    html += '<div class="knapprad"><button class="btn small ghost" onclick="kopieraText(forslagText())">📋 Kopiera datumförslag</button>' +
+      '<button class="btn small ghost" onclick="App.go(\'planer\')">Till planerna</button></div></div>';
   }
 
   /* ---- att hålla ögonen på ---- */
@@ -886,6 +1159,161 @@ function renderBevaka(){
   document.getElementById('view-bevaka').innerHTML = html;
 }
 
+/* ================= Planer: appens minne av samordningen ================= */
+/* All samordning sker fortfarande i SMS/WhatsApp/Messenger — det här är
+   det privata minnet av den: klistra in ett utdrag, få ett plankort med
+   vem/vad/när, status och citatet sparat. Ingen ska behöva installera
+   något, och ingen ska behöva scrolla tillbaka i en chatt igen. */
+let planLaser = false;      /* AI:n läser ett inklistrat utdrag just nu */
+let planFormOpen = false;   /* manuella formuläret är öppet */
+let planForslagId = null;   /* plan vars datumförslag visas */
+let visaPlanArkiv = false;
+
+const PLAN_EXTRAKT_TOOL = {
+  name: 'planer',
+  description: 'Rapportera de sociala planer som går att utläsa ur det inklistrade chattutdraget.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      planer: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            vem: { type: 'string', description: 'Personens namn — den användaren skriver med eller om.' },
+            vad: { type: 'string', description: 'Kort: middag, fika, promenad, bio …' },
+            status: { type: 'string', enum: ['namnd', 'foreslagen', 'bekraftad'] },
+            datum: { type: ['string', 'null'], description: 'ÅÅÅÅ-MM-DD om ett datum går att fastställa, annars null.' },
+            plats: { type: ['string', 'null'] },
+            oavklarat: { type: ['string', 'null'], description: 'Det som hänger i luften, t.ex. "hon skulle återkomma om söndag funkar".' },
+            citat: { type: 'string', description: 'Den mest informativa raden ur utdraget, ordagrann.' }
+          },
+          required: ['vem', 'vad', 'status', 'citat']
+        }
+      }
+    },
+    required: ['planer']
+  }
+};
+
+function planSystemPrompt(){
+  const t = todayDate();
+  return 'Du läser ett inklistrat utdrag ur en privat chattkonversation (SMS/WhatsApp/Messenger) och plockar ut sociala planer.\n' +
+    'Idag är ' + WDAYS[wIdx(t)] + ' ' + fmtDate(t) + ' — tolka "på fredag", "nästa helg" osv utifrån det.\n' +
+    'status: "namnd" = man har bara sagt att man borde ses, inget ligger på bordet; "foreslagen" = ett datum eller förslag ligger på bordet och väntar på svar; "bekraftad" = båda har sagt ja.\n' +
+    '"citat": kopiera den mest informativa raden ordagrant — den sparas på plankortet så att användaren aldrig behöver scrolla tillbaka i chatten.\n' +
+    'Hitta inget på: rapportera bara planer som faktiskt nämns i utdraget. En plan per person och tillfälle. ' +
+    'Anropa verktyget "planer" — med tom lista om inga planer går att utläsa.';
+}
+
+function planHtml(p){
+  const st = PLAN_STATUS[p.status] || PLAN_STATUS.namnd;
+  let html = '<div class="plan">' +
+    '<div class="pl-huvud"><span class="pl-vem">' + esc(p.vem) + '</span>' +
+    '<span class="pl-vad">' + esc(p.vad) + '</span>' +
+    (p.klar ? '' :
+      '<button class="p-bort" title="Klart / avslutad" onclick="App.planKlar(\'' + p.id + '\')">✓</button>' +
+      '<button class="p-bort" title="Ta bort" onclick="App.planBort(\'' + p.id + '\')">✕</button>') +
+    '</div>';
+  const rad2 = [];
+  if(p.datum){ const nar = narText(p.datum); rad2.push('📅 ' + cap(nar.text) + ' (' + p.datum + ')'); }
+  if(p.plats) rad2.push('📍 ' + p.plats);
+  if(rad2.length) html += '<div class="pl-rad2">' + esc(rad2.join(' · ')) + '</div>';
+  if(p.oavklarat && !p.klar) html += '<div class="pl-oavklarat">❓ ' + esc(p.oavklarat) + '</div>';
+  if(p.citat){
+    html += '<details><summary>Visa citatet ur chatten</summary>' +
+      '<div class="pl-citat">' + esc(p.citat) + '</div></details>';
+  }
+  if(!p.klar){
+    html += '<div class="statusrad">' +
+      Object.keys(PLAN_STATUS).map(k =>
+        '<button class="' + (p.status === k ? 'vald' : '') + '" onclick="App.planStatus(\'' + p.id + '\',\'' + k + '\')">' + PLAN_STATUS[k].namn + '</button>'
+      ).join('') + '</div>';
+    if(p.status === 'namnd' || p.status === 'foreslagen'){
+      if(planForslagId === p.id){
+        const text = forslagText();
+        html += '<div class="forslag-ruta"><div class="fr-text">”' + esc(text) + '”</div>' +
+          '<div class="knapprad"><button class="btn small" onclick="App.planKopiera(\'' + p.id + '\')">📋 Kopiera</button>' +
+          '<button class="btn small ghost" onclick="App.planForesla(null)">Stäng</button></div></div>';
+      } else {
+        html += '<div class="knapprad"><button class="btn small ghost" onclick="App.planForesla(\'' + p.id + '\')">💬 Föreslå datum</button></div>';
+      }
+    }
+  }
+  return html + '</div>';
+}
+
+function renderPlaner(){
+  const el = document.getElementById('view-planer');
+  if(!el) return;
+  if(!session){
+    el.innerHTML = '<div class="card"><h2>💛 Planer</h2>' +
+      '<p class="small muted">Här håller jag reda på det du och dina vänner pratar om — vem, vad och när, så inget "vi borde ses snart" rinner ut i sanden. ' +
+      'Logga in på Idag-fliken först.</p>' +
+      '<div class="knapprad"><button class="btn" onclick="App.go(\'idag\')">Till inloggningen</button></div></div>';
+    return;
+  }
+  let html = '';
+
+  /* klistra in ur chatten — kärnfunktionen */
+  html += '<div class="card"><h2>💬 Klistra in ur chatten</h2>' +
+    '<p class="small muted">Kopiera ett utdrag ur SMS, WhatsApp eller Messenger och klistra in här. Jag plockar ut vem, vad och när — och sparar citatet, så du aldrig behöver scrolla tillbaka.</p>' +
+    '<textarea id="planKlistraText" style="min-height:90px" placeholder="Sara: vi borde ses snart!!&#10;Du: jaa, kanske nästa helg?"></textarea>' +
+    '<div class="knapprad">' +
+    (planLaser
+      ? '<span class="small dim">🖋 Läser utdraget…</span>'
+      : '<button class="btn" onclick="App.planLasAv()">Läs av</button>' +
+        '<button class="btn small ghost" onclick="App.planFormVisa(' + (planFormOpen ? 'false' : 'true') + ')">' + (planFormOpen ? 'Stäng formuläret' : '+ Lägg till själv') + '</button>') +
+    '</div></div>';
+
+  if(planFormOpen){
+    html += '<div class="card"><h2>Ny plan</h2><div class="ny-form">' +
+      '<div class="ny-rad2">' +
+      '<input type="text" id="planVem" placeholder="Vem?" style="flex:1;min-width:120px">' +
+      '<input type="text" id="planVad" placeholder="Vad? (middag, fika …)" style="flex:1;min-width:140px">' +
+      '</div>' +
+      '<div class="ny-rad2">' +
+      '<select id="planStatusVal">' +
+      Object.keys(PLAN_STATUS).map(k => '<option value="' + k + '">' + PLAN_STATUS[k].namn + ' — ' + PLAN_STATUS[k].kort + '</option>').join('') +
+      '</select>' +
+      '<input type="date" id="planDatum" title="Datum (valfritt)">' +
+      '</div>' +
+      '<div class="knapprad"><button class="btn" onclick="App.planNySjalv()">Spara</button></div>' +
+      '</div></div>';
+  }
+
+  const alla = planerLista();
+  const oppna = alla.filter(p => !p.klar);
+  const efterDatum = (a, b) => String(a.datum || '9999').localeCompare(String(b.datum || '9999'));
+  const grupper = [
+    { rubrik: '📅 På gång', lista: oppna.filter(p => p.status === 'bekraftad' || p.status === 'kalender').sort(efterDatum) },
+    { rubrik: '⏳ Väntar på svar', lista: oppna.filter(p => p.status === 'foreslagen').sort(efterDatum) },
+    { rubrik: '💭 Bara nämnt än så länge', lista: oppna.filter(p => p.status === 'namnd') },
+  ];
+  for(const g of grupper){
+    if(!g.lista.length) continue;
+    html += '<div class="omr-rubrik"><h3>' + g.rubrik + '</h3><div class="streck"></div></div>' +
+      '<div class="card" style="padding-top:8px;padding-bottom:8px">' +
+      g.lista.map(planHtml).join('') + '</div>';
+  }
+  if(!oppna.length){
+    html += '<div class="card center"><p class="small muted">Inga planer ännu — klistra in något ur en chatt, så börjar vi där. 💛</p></div>';
+  }
+
+  const arkiv = alla.filter(p => p.klar);
+  if(arkiv.length){
+    html += '<div class="card" style="padding-top:10px;padding-bottom:10px">' +
+      '<p class="small muted" style="cursor:pointer" onclick="App.togglePlanArkiv()">' +
+      (visaPlanArkiv ? '▾' : '▸') + ' ' + arkiv.length + ' avklarade</p>';
+    if(visaPlanArkiv){
+      html += arkiv.slice(-20).reverse().map(planHtml).join('');
+    }
+    html += '</div>';
+  }
+
+  el.innerHTML = html;
+}
+
 /* ================= Prata med assistenten ================= */
 /* Chatten på förstasidan. Hålls i minnet (nollställs när appen laddas om);
    AI-anropen går via /api/assistent som håller nyckeln på servern och
@@ -893,7 +1321,7 @@ function renderBevaka(){
 const KAN_LYSSNA = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
 const KAN_TALA = 'speechSynthesis' in window;
 
-const HALSNING_PRATA = 'Hej! Fråga mig om dagen — barnen, mejlen, pengarna, skrivandet — eller be mig komma ihåg något åt dig.';
+const HALSNING_PRATA = 'Hej! Fråga mig om dagen — planerna, pengarna, mejlen — eller be mig komma ihåg något åt dig.';
 let visaHelaHistoriken = false;
 let prataSkickar = false;
 let prataStatus = ''; /* "öppnar sidan…" osv — visas i skriver-bubblan under agent-rundorna */
@@ -908,7 +1336,7 @@ function prataVisaStatus(text){
    det som sägs om den sparas för alltid i samtalsloggen som vanlig text) */
 let prataBifogad = null;
 let prataBildPreviews = {};
-/* länkar Anna klistrar in i chatten läses av via r.jina.ai (samma
+/* länkar ägaren klistrar in i chatten läses av via r.jina.ai (samma
    läsartjänst som Skrivbordets egen länkanalys i App.jsx) — en gratis
    proxy som hämtar och renderar sidan åt oss, så inga CORS- eller
    JS-rendering-problem, och ingen egen serverkod behövs. */
@@ -955,12 +1383,13 @@ function prataSystemPrompt(){
   const t = todayDate();
   const d = state.data || {};
   const vk = d.vardagskoll || {};
-  /* barnens vecka i kompakt, läsbar form */
+  const N = agNamn() || 'användaren';
+  /* barnens vecka i kompakt, läsbar form (bara för konton med Vardagskoll) */
   const vecka = [];
   for(let i = 0; i < 7; i++){
     const dt = addDays(t, i), ds = fmtDate(dt);
     const bitar = [];
-    if(vk.barnDagar && vk.barnDagar[ds]) bitar.push('barnen hos Anna');
+    if(vk.barnDagar && vk.barnDagar[ds]) bitar.push('barnen hos ' + N);
     for(const b of (vk.barn || [])) if((b.gympa || []).includes(wIdx(dt))) bitar.push(b.namn + ' har gympa');
     if(vk.middagar && vk.middagar[ds] && vk.middagar[ds].name) bitar.push('middag: ' + vk.middagar[ds].name);
     if(bitar.length) vecka.push(WDAYS[wIdx(dt)] + ' ' + ds + ': ' + bitar.join(', '));
@@ -968,38 +1397,49 @@ function prataSystemPrompt(){
   const brief = (d.brief && d.brief.datum === fmtDate(t)) ? d.brief : null;
   const mejl = d.mejl || {};
   const profil = d.profil && d.profil.text;
-  return 'Du är Annas personliga assistent i appen Assistenten — en stillsam, varm och kunnig sekreterare. ' +
-    'Anna är författare och frilansande kulturskribent, ensamstående med barn.\n' +
+  const resor = (d.jobbresor || []).filter(r => (r.end || r.start) >= fmtDate(t));
+  const harSkrivbord = d.skrivbordet && Object.keys(d.skrivbordet).length;
+  const db = ekoGrund() ? dagsbudget() : null;
+  const bd = buffertDagar();
+  const oppnaPlaner = planerLista().filter(p => !p.klar)
+    .map(p => ({ vem: p.vem, vad: p.vad, status: p.status, datum: p.datum || null, oavklarat: p.oavklarat || null }));
+  return 'Du är ' + genitiv(agNamn()) + ' personliga assistent i appen Assistenten — en stillsam, varm och kunnig sekreterare.\n' +
+    agRad() +
     'Idag är ' + WDAYS[wIdx(t)] + ' ' + fmtDate(t) + '.\n\n' +
-    (profil ? 'DINA EGNA ANTECKNINGAR OM ANNA (använd dem för att förstå henne — citera dem aldrig och berätta inte att de finns):\n' + profil + '\n\n' : '') +
-    (utlatandenText() ? 'UTLÅTANDEN (Annas egna godkända beskrivningar av sig själv — rätta dig alltid efter dem):\n' + utlatandenText() : '') +
+    (profil ? 'DINA EGNA ANTECKNINGAR OM ' + N.toUpperCase() + ' (använd dem för att förstå ' + N + ' — citera dem aldrig och berätta inte att de finns):\n' + profil + '\n\n' : '') +
+    (utlatandenText() ? 'UTLÅTANDEN (' + genitiv(N) + ' egna godkända beskrivningar av sig själv — rätta dig alltid efter dem):\n' + utlatandenText() : '') +
     'DAGSLÄGET:\n' +
     (brief ? 'Dagens morgonbrief: ' + brief.halsning + ' ' + (brief.punkter || []).map(p => (p.rubrik ? p.rubrik + ': ' : '') + p.text).join(' ') + '\n' : 'Ingen morgonbrief har skrivits idag ännu.\n') +
     (vecka.length ? 'Barnens och husets vecka:\n' + vecka.join('\n') + '\n' : '') +
     'Öppna bevakningar: ' + JSON.stringify(state.poster.filter(p => !p.klar).map(p => ({ omrade: p.omrade, text: p.text, datum: p.datum || null }))) + '\n' +
-    'Kommande jobbresor: ' + JSON.stringify((d.jobbresor || []).filter(r => (r.end || r.start) >= fmtDate(t))) + '\n' +
-    'Karriär: ' + JSON.stringify(d.skrivbordet || {}) + ' (deadline = skrivdeadline, targetKr = intäktsmål)\n' +
+    'Sociala planer (fliken Planer; status: namnd = bara nämnt, foreslagen = datum ligger på bordet, bekraftad = båda sagt ja, kalender = inbokat): ' + JSON.stringify(oppnaPlaner) + '\n' +
+    (resor.length ? 'Kommande jobbresor: ' + JSON.stringify(resor) + '\n' : '') +
+    (harSkrivbord ? 'Karriär: ' + JSON.stringify(d.skrivbordet) + ' (deadline = skrivdeadline, targetKr = intäktsmål)\n' : '') +
     'Ekonomi, väntande poster (in = ska faktureras/komma in, ut = ska betalas): ' +
     JSON.stringify(state.ekonomiPoster.map(p => ({ typ: p.typ, beskrivning: p.beskrivning, belopp: p.belopp, forfallodatum: p.forfallodatum }))) +
     ' Saldon: ' + JSON.stringify(state.ekonomiSaldon) + '\n' +
+    (db ? 'Dagsbudget: ' + db.perDag + ' kr/dag till lönen (' + db.lonedatum + ', ' + db.dagar + ' dagar kvar; saldo minus räkningar som förfaller före lön). ' : '') +
+    (bd !== null ? 'Bufferten räcker ca ' + bd + ' dagar utan inkomst. ' : '') +
+    (ekoGrund() ? 'Golvlön (lägsta rimliga månadsinkomst, allt över är överskott): ' + (ekoGrund().golvlon || '?') + ' kr. Prata om pengar utan skäll och utan alarm — konstatera och räkna om.\n' : '\n') +
     'Ur mejlen: viktiga: ' + JSON.stringify((mejl.viktiga || []).slice(0, 8)) +
     ' obesvarade: ' + JSON.stringify((mejl.obesvarade || []).slice(0, 8)) +
     ' datum som hittats: ' + JSON.stringify((mejl.datumfynd || []).slice(0, 10)) +
     ' räkningar ur morgonens mejlsvep (ser obetalda ut, ej dubbletter av ekonomilistan): ' + JSON.stringify((mejl.rakningar || []).slice(0, 10)) + '\n' +
-    'Frågar Anna om obetalda räkningar i inkorgen: utgå från "räkningar ur morgonens mejlsvep" ovan (svepet görs varje morgon, ca 45 dagar bakåt) plus ekonomilistan — säg inte att du saknar tillgång till inkorgen, men nämn att svepet är från i morse om det spelar roll.\n\n' +
+    'Frågar ' + N + ' om obetalda räkningar i inkorgen: utgå från "räkningar ur morgonens mejlsvep" ovan (svepet görs varje morgon, ca 45 dagar bakåt) plus ekonomilistan — säg inte att du saknar tillgång till inkorgen, men nämn att svepet är från i morse om det spelar roll.\n\n' +
     'DINA VERKTYG — du arbetar i rundor och MÅSTE anropa ett verktyg varje runda:\n' +
-    '- oppna_lank: öppnar en webbadress och ger dig sidans text. Du kan öppna flera sidor i följd, och även undersidor du bygger själv (t.ex. lägga till /om eller /kontakt på en adress Anna gett dig). Säg ALDRIG att du inte kan öppna länkar eller klicka dig vidare — du kan.\n' +
+    '- oppna_lank: öppnar en webbadress och ger dig sidans text. Du kan öppna flera sidor i följd, och även undersidor du bygger själv (t.ex. lägga till /om eller /kontakt på en adress du fått). Säg ALDRIG att du inte kan öppna länkar eller klicka dig vidare — du kan.\n' +
     '- sok_webben: söker på webben efter aktuell information (nyheter, öppettider, evenemang, fakta). Använd den hellre än att gissa om något du inte vet säkert.\n' +
-    '- svara: avslutar din tur med svaret till Anna. Varje tur MÅSTE sluta med svara — använd de andra verktygen först om du behöver, sedan svara.\n' +
+    '- svara: avslutar din tur med svaret till ' + N + '. Varje tur MÅSTE sluta med svara — använd de andra verktygen först om du behöver, sedan svara.\n' +
     'Regler:\n' +
-    '- "svar" läses ofta upp högt: skriv naturligt talspråk i hela meningar, utan punktlistor, emojis eller specialtecken. Kort (1–3 meningar) om inte Anna ber om mer.\n' +
-    '- Fälten i "svara" (bevakningar, matcha_texter, andra_bevakningar, ekonomi, anteckning) är OBEROENDE av varandra och kan alla vara ifyllda I SAMMA ANROP. Ska du både bocka av gamla poster OCH lägga in en ny (t.ex. slå ihop flera till en gemensam påminnelse): gör BÅDA i detta enda anrop, aldrig "i nästa steg".\n' +
-    '- Ber Anna dig komma ihåg, bevaka eller påminna om saker: lägg EN post PER sak i listan "bevakningar" — även om det är många på en gång, lägg in ALLA i samma anrop, aldrig en i taget. Rimligt omrade och datum per post (tolka "imorgon", "på torsdag" osv utifrån dagens datum; null om inget datum nämns).\n' +
-    '- Säger Anna att en eller flera saker är gjorda/klara: lista i "matcha_texter" en ordagrann del av varje befintlig bevaknings text som ska bockas av. Vill hon flytta fram, döpa om eller ändra en bevakning (inte bocka av): använd "andra_bevakningar" med matcha + ny_text/nytt_datum. Finns ingen träff, ställ en följdfråga i stället — men gissa inte.\n' +
+    '- "svar" läses ofta upp högt: skriv naturligt talspråk i hela meningar, utan punktlistor, emojis eller specialtecken. Kort (1–3 meningar) om inte ' + N + ' ber om mer.\n' +
+    '- Fälten i "svara" (bevakningar, matcha_texter, andra_bevakningar, ekonomi, planer, andra_planer, anteckning) är OBEROENDE av varandra och kan alla vara ifyllda I SAMMA ANROP. Ska du både bocka av gamla poster OCH lägga in en ny (t.ex. slå ihop flera till en gemensam påminnelse): gör BÅDA i detta enda anrop, aldrig "i nästa steg".\n' +
+    '- Ber ' + N + ' dig komma ihåg, bevaka eller påminna om saker: lägg EN post PER sak i listan "bevakningar" — även om det är många på en gång, lägg in ALLA i samma anrop, aldrig en i taget. Rimligt omrade och datum per post (tolka "imorgon", "på torsdag" osv utifrån dagens datum; null om inget datum nämns).\n' +
+    '- Säger ' + N + ' att en eller flera saker är gjorda/klara: lista i "matcha_texter" en ordagrann del av varje befintlig bevaknings text som ska bockas av. Ska en bevakning flyttas fram, döpas om eller ändras (inte bockas av): använd "andra_bevakningar" med matcha + ny_text/nytt_datum. Finns ingen träff, ställ en följdfråga i stället — men gissa inte.\n' +
+    '- Berättar ' + N + ' om något socialt på gång ("jag och Sara sa att vi borde ses", "Nils föreslog fredag", "middagen med Ali är spikad"): lägg en post i "planer" med vem, vad och rätt status — eller uppdatera en befintlig med "andra_planer" (matcha_vem + ny_status/nytt_datum). En plan per person och tillfälle.\n' +
     '- Efter att svara har körts avslutas din tur — det finns inget "nästa steg" du kommer ihåg till senare. Behöver du öppna en sida eller söka: gör det INNAN du anropar svara, i samma tur. Säg aldrig "jag gör det i nästa steg" eller liknande.\n' +
     '- Ekonomi kan du sköta direkt härifrån med fältet "ekonomi" i svara: ny_post (räkning/faktura med beskrivning, belopp, forfallodatum; redan_klar true om den redan är betald/mottagen), markera_klar (matcha_beskrivning mot en väntande post) och uppdatera_saldo. Detaljerad genomgång av ekonomin finns också i fliken Ekonomi.\n' +
-    '- Berättar Anna något varaktigt om sig själv eller sina projekt som du bör minnas framöver (inte en uppgift med datum): spara en kort rad i "anteckning" — den hamnar i dina egna anteckningar om henne.\n' +
-    '- Klistrar Anna in en länk hämtas sidans text automatiskt åt dig och ligger i ett textblock i meddelandet. Vill du läsa mer (undersidor, källor) — använd oppna_lank. Låtsas aldrig att du läst något du inte fått innehåll för.\n' +
+    '- Berättar ' + N + ' något varaktigt om sig själv eller sina projekt som du bör minnas framöver (inte en uppgift med datum): spara en kort rad i "anteckning" — den hamnar i dina egna anteckningar.\n' +
+    '- Klistras en länk in hämtas sidans text automatiskt åt dig och ligger i ett textblock i meddelandet. Vill du läsa mer (undersidor, källor) — använd oppna_lank. Låtsas aldrig att du läst något du inte fått innehåll för.\n' +
     '- Är något oklart: ställ en kort följdfråga i "svar" i stället för att ändra något.\n' +
     '- Gissa aldrig om sådant som inte finns i underlaget eller går att slå upp — säg hellre att du inte vet.';
 }
@@ -1011,18 +1451,18 @@ function prataSystemPrompt(){
    applicerades trots att svaret lät klart. Se api/assistent.js. */
 const PRATA_TOOL = {
   name: 'svara',
-  description: 'Avsluta din tur med ett svar till Anna. Kan samtidigt lägga till, bocka av eller ändra bevakningar, sköta ekonomiposter och spara en minnesanteckning.',
+  description: 'Avsluta din tur med ett svar till användaren. Kan samtidigt lägga till, bocka av eller ändra bevakningar, sköta ekonomiposter och sociala planer, och spara en minnesanteckning.',
   input_schema: {
     type: 'object',
     properties: {
-      svar: { type: 'string', description: 'Svaret till Anna, på svenska, naturligt talspråk.' },
+      svar: { type: 'string', description: 'Svaret till användaren, på svenska, naturligt talspråk.' },
       bevakningar: {
         type: 'array',
         description: 'Nya bevakningar att lägga till.',
         items: {
           type: 'object',
           properties: {
-            omrade: { type: 'string', enum: ['barn', 'karriar', 'hushall', 'halsa'] },
+            omrade: { type: 'string', enum: ['barn', 'karriar', 'vanner', 'hushall', 'halsa'] },
             text: { type: 'string' },
             datum: { type: ['string', 'null'] }
           },
@@ -1066,7 +1506,35 @@ const PRATA_TOOL = {
           required: ['action']
         }
       },
-      anteckning: { type: ['string', 'null'], description: 'En kort varaktig minnesanteckning om Anna eller hennes projekt (inte en uppgift med datum) — sparas i din interna profil.' }
+      planer: {
+        type: 'array',
+        description: 'Nya sociala planer att lägga till i fliken Planer.',
+        items: {
+          type: 'object',
+          properties: {
+            vem: { type: 'string', description: 'Personens namn.' },
+            vad: { type: 'string', description: 'Kort: middag, fika, promenad, bio …' },
+            status: { type: 'string', enum: ['namnd', 'foreslagen', 'bekraftad', 'kalender'] },
+            datum: { type: ['string', 'null'], description: 'ÅÅÅÅ-MM-DD om ett datum nämnts.' },
+            oavklarat: { type: ['string', 'null'], description: 'Det som hänger i luften, t.ex. "hon skulle återkomma om söndag".' }
+          },
+          required: ['vem', 'vad', 'status']
+        }
+      },
+      andra_planer: {
+        type: 'array',
+        description: 'Ändringar av befintliga sociala planer (ny status och/eller nytt datum).',
+        items: {
+          type: 'object',
+          properties: {
+            matcha_vem: { type: 'string', description: 'Ordagrann del av personens namn i den befintliga planen.' },
+            ny_status: { type: ['string', 'null'], enum: ['namnd', 'foreslagen', 'bekraftad', 'kalender', 'klar', null] },
+            nytt_datum: { type: ['string', 'null'] }
+          },
+          required: ['matcha_vem']
+        }
+      },
+      anteckning: { type: ['string', 'null'], description: 'En kort varaktig minnesanteckning om användaren eller det användaren har för sig (inte en uppgift med datum) — sparas i din interna profil.' }
     },
     required: ['svar']
   }
@@ -1077,7 +1545,7 @@ const PRATA_TOOL = {
    öppna länkar och söka i flera steg innan den avslutar med "svara". */
 const OPPNA_LANK_TOOL = {
   name: 'oppna_lank',
-  description: 'Öppna en webbadress och få sidans textinnehåll. Fungerar även för undersidor — bygg själv adressen (t.ex. exempel.se/om eller exempel.se/kontakt) utifrån en sida du redan öppnat eller fått av Anna.',
+  description: 'Öppna en webbadress och få sidans textinnehåll. Fungerar även för undersidor — bygg själv adressen (t.ex. exempel.se/om eller exempel.se/kontakt) utifrån en sida du redan öppnat eller fått av användaren.',
   input_schema: {
     type: 'object',
     properties: { url: { type: 'string', description: 'Fullständig adress som börjar med http:// eller https://' } },
@@ -1114,13 +1582,13 @@ async function webbSok(fraga){
 
 /* ================= Lär känna mig: intervjuerna ================= */
 /* Tre frågeformulär med fasta frågor och fält att fylla i själv — inget
-   AI-samtal krävs för att svara. Svaren sparas automatiskt medan Anna
+   AI-samtal krävs för att svara. Svaren sparas automatiskt medan ägaren
    skriver. Assistenten kan på begäran sammanfatta svaren till ett
-   utlåtande, som Anna sedan kan redigera fritt — hennes version gäller. */
+   utlåtande, som ägaren sedan kan redigera fritt — den sparade versionen gäller. */
 const INTERVJUER = {
   halsa: {
     titel: 'Hälsa & hur jag fungerar', emoji: '🌿',
-    beskrivning: 'Annas psykologiska och fysiska hälsa och sätt att fungera: energi över dygnet och veckan, sömn, stress och återhämtning, koncentration, vad som hjälper när det är tungt, fysiska förutsättningar och begränsningar',
+    beskrivning: 'användarens psykologiska och fysiska hälsa och sätt att fungera: energi över dygnet och veckan, sömn, stress och återhämtning, koncentration, vad som hjälper när det är tungt, fysiska förutsättningar och begränsningar',
     fragor: [
       { id: 'h1', text: 'Hur ser din energi ut över en vanlig dag — när är du som piggast, och när tar det emot?',
         alternativ: ['Piggast på morgonen', 'Piggast på kvällen', 'Ojämnt, växlar mycket', 'Trött hela dagen'] },
@@ -1139,59 +1607,60 @@ const INTERVJUER = {
     ],
   },
   karriar: {
-    titel: 'Karriärsmål', emoji: '✒️',
-    beskrivning: 'Annas karriärsmål: vart hon vill med skrivandet, drömprojekt, ekonomi och trygghet, vad framgång betyder för henne, tidshorisonter',
+    titel: 'Jobb & mål', emoji: '✒️',
+    beskrivning: 'användarens mål framåt: vart hen vill med jobbet och livet, drömprojekt, ekonomi och trygghet, vad framgång betyder, tidshorisonter',
     fragor: [
-      { id: 'k1', text: 'Om allt gick din väg de närmaste åren — vad har du då skrivit, och vad har det gett dig?',
-        alternativ: ['En bok jag är stolt över', 'Trygg ekonomi', 'Ett namn i branschen', 'Frihet att välja projekt'] },
+      { id: 'k1', text: 'Om allt gick din väg de närmaste åren — var är du då, och vad har det gett dig?',
+        alternativ: ['Ett arbete jag är stolt över', 'Trygg ekonomi', 'Mer utveckling och ansvar', 'Frihet att välja själv'] },
       { id: 'k2', text: 'Vad betyder framgång för dig just nu?',
-        alternativ: ['Att hinna skriva det jag vill', 'Bra betalt', 'Erkännande', 'Balans med livet i övrigt'] },
-      { id: 'k3', text: 'Finns det ett drömprojekt du bär på?',
-        alternativ: ['Ja, en bok', 'Ja, men inte klart vad', 'Nej, inte just nu', 'Flera olika'] },
-      { id: 'k4', text: 'Hur mycket väger ekonomisk trygghet mot konstnärlig frihet för dig?',
+        alternativ: ['Att hinna med det jag brinner för', 'Bra betalt', 'Erkännande', 'Balans med livet i övrigt'] },
+      { id: 'k3', text: 'Finns det ett drömprojekt eller en dröm du bär på?',
+        alternativ: ['Ja, ett tydligt', 'Ja, men inte klart vad', 'Nej, inte just nu', 'Flera olika'] },
+      { id: 'k4', text: 'Hur mycket väger ekonomisk trygghet mot frihet för dig?',
         alternativ: ['Trygghet väger tyngst', 'Frihet väger tyngst', 'Vill ha båda', 'Beror på perioden'] },
-      { id: 'k5', text: 'Vilken typ av uppdrag eller texter ger dig mest energi?',
-        alternativ: ['Personliga/essäistiska texter', 'Undersökande journalistik', 'Kortare, snabba uppdrag', 'Längre skönlitterära projekt'] },
+      { id: 'k5', text: 'Vilken typ av uppgifter ger dig mest energi?',
+        alternativ: ['Möten med människor', 'Fördjupning i lugn och ro', 'Korta, snabba ryck', 'Långsiktiga projekt'] },
       { id: 'k6', text: 'Hur ser en riktigt bra arbetsvecka ut för dig?',
-        alternativ: ['Långa sammanhängande skrivpass', 'Blandat med möten', 'Flexibla dagar', 'Tydlig struktur varje dag'] },
+        alternativ: ['Långa sammanhängande pass', 'Blandat med möten', 'Flexibla dagar', 'Tydlig struktur varje dag'] },
       { id: 'k7', text: 'Finns det något du skjutit upp som du egentligen vill ta tag i?',
-        alternativ: ['Ja, ett skrivprojekt', 'Ja, något administrativt', 'Nej, inget särskilt', 'Flera saker'] },
+        alternativ: ['Ja, ett eget projekt', 'Ja, något administrativt', 'Nej, inget särskilt', 'Flera saker'] },
     ],
   },
   varderingar: {
     titel: 'Värderingar', emoji: '🧭',
-    beskrivning: 'Annas värderingar: vad som är viktigast i livet, var gränserna går, vad hon aldrig kompromissar med, hur hon vill prioritera när saker krockar',
+    beskrivning: 'användarens värderingar: vad som är viktigast i livet, var gränserna går, vad hen aldrig kompromissar med, hur hen vill prioritera när saker krockar',
     fragor: [
       { id: 'v1', text: 'Vad i livet är så viktigt för dig att allt annat får ge vika när det krisar?',
-        alternativ: ['Barnen', 'Min egen hälsa', 'Relationer/vänner', 'Att hålla ihop vardagen'] },
+        alternativ: ['Familjen', 'Min egen hälsa', 'Relationer/vänner', 'Att hålla ihop vardagen'] },
       { id: 'v2', text: 'Var går dina gränser — vad kompromissar du aldrig med?',
-        alternativ: ['Ärlighet', 'Tid med barnen', 'Min integritet som skribent', 'Att bli respekterad'] },
-      { id: 'v3', text: 'Hur vill du prioritera när barnen, jobbet och du själv krockar?',
-        alternativ: ['Barnen först, alltid', 'Försöker hitta balans', 'Jobbet måste ibland gå före', 'Beror helt på situationen'] },
-      { id: 'v4', text: 'Vad vill du att barnen ska minnas av hur du var som förälder?',
-        alternativ: ['Att jag fanns där', 'Att jag var rolig/lekfull', 'Att jag stod på deras sida', 'Att jag visade hur man älskar sitt arbete'] },
+        alternativ: ['Ärlighet', 'Tid för de närmaste', 'Min integritet', 'Att bli respekterad'] },
+      { id: 'v3', text: 'Hur vill du prioritera när jobbet, relationerna och du själv krockar?',
+        alternativ: ['De närmaste först, alltid', 'Försöker hitta balans', 'Jobbet måste ibland gå före', 'Beror helt på situationen'] },
+      { id: 'v4', text: 'Vad vill du att människorna närmast dig ska minnas av dig?',
+        alternativ: ['Att jag fanns där', 'Att jag var rolig/lekfull', 'Att jag stod på deras sida', 'Att jag levde som jag lärde'] },
       { id: 'v5', text: 'Finns det något du vill att jag alltid väger in när jag hjälper dig?',
         alternativ: ['Var snäll i tonen', 'Påminn hellre en gång för mycket', 'Var rak och konkret', 'Ge mig andrum, inte fler krav'] },
       { id: 'v6', text: 'Vad gör dig verkligen glad i vardagen?',
-        alternativ: ['Tid med barnen', 'Att skriva bra en dag', 'Naturen/utomhus', 'Lugna morgnar med kaffe'] },
+        alternativ: ['Tid med nära och kära', 'En riktigt bra arbetsdag', 'Naturen/utomhus', 'Lugna morgnar med kaffe'] },
       { id: 'v7', text: 'Är det något i ditt liv du vill att jag hjälper dig skydda tid för?',
-        alternativ: ['Skrivandet', 'Vila/återhämtning', 'Tid med barnen', 'Träning/rörelse'] },
+        alternativ: ['Ett eget projekt', 'Vila/återhämtning', 'Tid med nära och kära', 'Träning/rörelse'] },
     ],
   },
 };
 let intervju = null; /* pågående: { typ, index, svar: {frageId: text}, laege: 'fraga'|'utlatande', utkast, sammanfattar } */
 
-/* Annas godkända utlåtanden — vävs in i allt assistenten gör */
+/* ägarens godkända utlåtanden — vävs in i allt assistenten gör */
 function utlatandenText(){
   const iv = (state.data && state.data.intervjuer) || {};
+  const G = genitiv(agNamn());
   let ut = '';
-  if(iv.halsa && iv.halsa.utlatande) ut += 'Om Annas hälsa och sätt att fungera:\n' + iv.halsa.utlatande + '\n\n';
-  if(iv.karriar && iv.karriar.utlatande) ut += 'Annas karriärsmål:\n' + iv.karriar.utlatande + '\n\n';
-  if(iv.varderingar && iv.varderingar.utlatande) ut += 'Annas värderingar:\n' + iv.varderingar.utlatande + '\n\n';
+  if(iv.halsa && iv.halsa.utlatande) ut += 'Om ' + G + ' hälsa och sätt att fungera:\n' + iv.halsa.utlatande + '\n\n';
+  if(iv.karriar && iv.karriar.utlatande) ut += G.charAt(0).toUpperCase() + G.slice(1) + ' mål framåt:\n' + iv.karriar.utlatande + '\n\n';
+  if(iv.varderingar && iv.varderingar.utlatande) ut += G.charAt(0).toUpperCase() + G.slice(1) + ' värderingar:\n' + iv.varderingar.utlatande + '\n\n';
   return ut;
 }
 
-/* svaren sparas med kort debounce medan Anna skriver — ingen omritning
+/* svaren sparas med kort debounce medan ägaren skriver — ingen omritning
    krävs (fälten är vanliga textareor), bara en tyst uppdatering i bakgrunden */
 let intervjuSvarTimer = null;
 function scheduleIntervjuSvarPush(){
@@ -1289,7 +1758,10 @@ function renderIntervju(){
 const HALSNING_EKONOMI = 'Hej! Säg till när en faktura eller räkning dyker upp, eller fråga hur läget ser ut.';
 let ekonomiSkickar = false;
 let ekoForm = { open: false, typ: 'ut' };
-let ekoValdFil = null; /* fakturabilagan Anna fotat/valt, oberoende av vilken knapp */
+let ekoGrundForm = false;   /* redigerar grunden (golvlön/lönedag/fasta) */
+let ekoOforutsett = false;  /* fältet för en oförutsedd utgift är öppet */
+let ekoLonSvar = null;      /* efter lön-frågan: { overskott, forslag } när lönen är inskriven */
+let ekoValdFil = null; /* fakturabilagan ägaren fotat/valt, oberoende av vilken knapp */
 let visaEkoArkiv = false;
 
 /* aktuella respektive avklarade poster — avklarade arkiveras för alltid,
@@ -1448,8 +1920,16 @@ function lasbarText(text){
 function ekoSystemPrompt(){
   const t = todayDate();
   const profil = state.data && state.data.profil && state.data.profil.text;
-  return 'Du är en ekonomiassistent i appen Assistenten, för en frilansande svensk kulturskribent.\n' +
+  const g = ekoGrund();
+  const db = g ? dagsbudget() : null;
+  const bd = buffertDagar();
+  return 'Du är ' + genitiv(agNamn()) + ' ekonomiassistent i appen Assistenten.\n' +
+    agRad() +
     'Idag är ' + WDAYS[wIdx(t)] + ' ' + fmtDate(t) + '.\n\n' +
+    (g ? 'Ekonomigrunden: golvlön (lägsta rimliga månadsinkomst — allt över är överskott) ' + (g.golvlon || '?') + ' kr, lönedag den ' + (g.lonedag || '?') + ':e, fasta utgifter ca ' + (g.fasta || '?') + ' kr/mån.\n' +
+      (db ? 'Dagsbudget just nu: ' + db.perDag + ' kr/dag i ' + db.dagar + ' dagar till lön (saldo minus räkningar som förfaller före lönedagen).\n' : '') +
+      (bd !== null ? 'Bufferten räcker ca ' + bd + ' dagar utan inkomst.\n' : '') +
+      'Tonläge: aldrig skäll, aldrig alarm — konstatera och räkna om. Mät trygghet i dagar, inte kronor.\n\n' : '') +
     (profil ? 'Dina egna anteckningar om användaren (håll dem för dig själv):\n' + profil + '\n\n' : '') +
     (utlatandenText() ? 'Användarens egna godkända beskrivningar av sig själv (rätta dig efter dem):\n' + utlatandenText() : '') +
     'Nuvarande väntande poster (typ "in" = pengar som ska komma in, "ut" = pengar som ska betalas):\n' +
@@ -1461,7 +1941,7 @@ function ekoSystemPrompt(){
     'Du svarar genom att anropa verktyget "svara" med fälten svar, action, post, saldo och matcha_beskrivning.\n' +
     'Regler:\n' +
     '- "post" bara vid action "ny_post", "saldo" bara vid "uppdatera_saldo", "matcha_beskrivning" bara vid "markera_klar" (ordagrann del av den befintliga postens beskrivning).\n' +
-    '- typ "in" = pengar användaren ska få in (t.ex. en faktura hon skickat till en kund); typ "ut" = en räkning hon ska betala.\n' +
+    '- typ "in" = pengar användaren ska få in (t.ex. en faktura, en swish, en återbetalning); typ "ut" = en räkning som ska betalas.\n' +
     '- "redan_klar": true om användaren säger att pengarna REDAN kommit in eller att räkningen REDAN är betald ("kom in idag", "är betald", "har fått betalt") — då läggs posten direkt i arkivet i stället för som väntande. Annars false.\n' +
     '- Skriv en tydlig, kort beskrivning (t.ex. "Faktura till [kund]" eller "Elräkning"), inte en ordagrann upprepning av användarens mening.\n' +
     '- Tolka relativa datum (imorgon, på fredag, nästa vecka) utifrån dagens datum. Vid "redan_klar" utan tydligt datum: använd dagens datum.\n' +
@@ -1473,7 +1953,7 @@ function ekoSystemPrompt(){
 /* Se PRATA_TOOL ovan för varför strukturerat svar tvingas via verktyg. */
 const EKONOMI_TOOL = {
   name: 'svara',
-  description: 'Ge ett svar till Anna om ekonomin, och lägg till en post, uppdatera ett saldo eller markera en post som klar om det behövs.',
+  description: 'Ge ett svar till användaren om ekonomin, och lägg till en post, uppdatera ett saldo eller markera en post som klar om det behövs.',
   input_schema: {
     type: 'object',
     properties: {
@@ -1528,6 +2008,87 @@ function renderEkonomi(){
     return;
   }
 
+  /* ---- grunden & dagsbudgeten: en buffert, inte ett sparmål; dagar, inte
+     kronor; aldrig skäll, aldrig röda siffror ---- */
+  const grund = ekoGrund();
+  let topp = '';
+  if(!grund || ekoGrundForm){
+    const g = grund || {};
+    topp += '<div class="card"><h2>🌱 Grunden</h2>' +
+      (grund ? '' : '<p class="small muted">Tre siffror, en gång: så kan jag räkna ut vad du har att röra dig med per dag — och hur många dagar bufferten räcker. Golvlönen är den lägsta lön du rimligen kan få en dålig månad, inte snittet. Allt över golvet är överskott.</p>') +
+      '<div class="ny-form" style="margin-top:8px">' +
+      '<div class="ny-rad2">' +
+      '<input type="number" id="grundGolv" placeholder="Golvlön kr/mån" value="' + (g.golvlon || '') + '" style="flex:1;min-width:130px">' +
+      '<input type="number" id="grundLonedag" min="1" max="28" placeholder="Lönedag (1–28)" value="' + (g.lonedag || '') + '" style="flex:1;min-width:130px">' +
+      '</div>' +
+      '<input type="number" id="grundFasta" placeholder="Fasta utgifter kr/mån (hyra, el, abonnemang — totalsumman)" value="' + (g.fasta || '') + '">' +
+      '<div class="knapprad">' +
+      '<button class="btn" onclick="App.grundSpara()">Spara grunden</button>' +
+      (grund ? '<button class="btn ghost" onclick="App.grundForm(false)">Avbryt</button>' : '') +
+      '</div></div></div>';
+  } else {
+    const db = dagsbudget();
+    const bd = buffertDagar();
+    const hs = huvudSaldo();
+    const bs = buffertSaldo();
+    topp += '<div class="card"><h2>💸 Dagsbudget</h2>';
+    if(db){
+      topp += '<div class="pengarad"><span class="pr-stor">' + esc(new Intl.NumberFormat('sv-SE').format(db.perDag)) + ' kr/dag</span>' +
+        '<span class="pr-enhet">till lön den ' + esc(String(Number(grund.lonedag))) + ':e — ' + db.dagar + (db.dagar === 1 ? ' dag' : ' dagar') + ' kvar</span></div>' +
+        '<p class="small muted">' + esc(formatKr(db.kvar)) + ' kvar att leva på' +
+        (db.rakningar ? ' (saldot ' + esc(formatKr(Number(hs.belopp) || 0)) + ' minus ' + esc(formatKr(db.rakningar)) + ' i räkningar som förfaller före lön)' : '') + '.</p>';
+    } else {
+      topp += '<p class="small muted">Skriv in vad som finns på kontot just nu, så räknar jag ut din dagsbudget — kvar till lön, delat med dagarna dit.</p>';
+    }
+    topp += '<p class="small" style="margin-top:6px">' +
+      (bd !== null
+        ? '🛡️ Bufferten räcker ungefär <b>' + bd + (bd === 1 ? ' dag' : ' dagar') + '</b> utan inkomst (' + esc(formatKr(bs.belopp)) + ').'
+        : '🛡️ Ingen buffert inlagd ännu — skriv in vad som finns på buffertkontot nedan, även om det är noll.') + '</p>';
+    /* saldon fylls i för hand — tio sekunder, och du vet var du står */
+    topp += '<div class="ny-rad2" style="margin-top:10px">' +
+      '<input type="number" id="saldoKonto" placeholder="Saldo på kontot" style="flex:1;min-width:120px">' +
+      '<input type="number" id="saldoBuffert" placeholder="Saldo bufferten" style="flex:1;min-width:120px">' +
+      '<button class="btn" onclick="App.saldonSpara()">Uppdatera</button>' +
+      '</div>';
+    if(ekoOforutsett){
+      topp += '<div class="ny-rad2" style="margin-top:8px">' +
+        '<input type="number" id="oforutsettBelopp" placeholder="Vad kostade det?" style="flex:1" onkeydown="if(event.key===\'Enter\')App.oforutsettSpara()">' +
+        '<button class="btn" onclick="App.oforutsettSpara()">Räkna om</button>' +
+        '<button class="btn ghost" onclick="App.oforutsettForm(false)">Avbryt</button>' +
+        '</div>';
+    }
+    topp += '<div class="knapprad">' +
+      (ekoOforutsett ? '' : '<button class="btn small ghost" onclick="App.oforutsettForm(true)">⚡ Oförutsedd utgift</button>') +
+      '<button class="btn small ghost" onclick="App.grundForm(true)">✎ Grunden</button>' +
+      '</div></div>';
+
+    /* efter lön: en fråga, ett svep — överskottet över golvet bygger skydd */
+    if(lonFragaAktuell()){
+      topp += '<div class="card brief"><h2>💌 Har lönen kommit?</h2>';
+      if(ekoLonSvar){
+        if(ekoLonSvar.overskott > 0){
+          topp += '<p class="small">Du fick <b>' + esc(formatKr(ekoLonSvar.overskott)) + '</b> över golvet. Flytta ' + esc(formatKr(ekoLonSvar.forslag)) + ' till bufferten?</p>' +
+            '<p class="small dim">Gör själva överföringen i banken — jag bokför den här.</p>' +
+            '<div class="knapprad">' +
+            '<button class="btn" onclick="App.lonFlytta()">Flytta ' + esc(formatKr(ekoLonSvar.forslag)) + '</button>' +
+            '<button class="btn ghost" onclick="App.lonKlar()">Inte den här månaden</button>' +
+            '</div>';
+        } else {
+          topp += '<p class="small">Den här månaden landade på eller under golvet — då är den neutral, precis som det är tänkt. Bufferten får vila.</p>' +
+            '<div class="knapprad"><button class="btn" onclick="App.lonKlar()">Okej</button></div>';
+        }
+      } else {
+        topp += '<p class="small muted">Skriv in vad som kom in, så ser vi om något kan läggas undan.</p>' +
+          '<div class="ny-rad2" style="margin-top:8px">' +
+          '<input type="number" id="lonBelopp" placeholder="Månadens lön, kr" style="flex:1" onkeydown="if(event.key===\'Enter\')App.lonInskriven()">' +
+          '<button class="btn" onclick="App.lonInskriven()">Räkna</button>' +
+          '<button class="btn ghost" onclick="App.lonKlar()">Fråga inte nu</button>' +
+          '</div>';
+      }
+      topp += '</div>';
+    }
+  }
+
   const sorterade = ekoAktiva()
     .sort((a, b) => String(a.forfallodatum || '9999').localeCompare(String(b.forfallodatum || '9999')));
   const akuta = sorterade.filter(p => p.forfallodatum && dagarTill(p.forfallodatum) <= 1);
@@ -1537,7 +2098,7 @@ function renderEkonomi(){
   const summaUt = vecka.filter(p => p.typ !== 'in').reduce((s, p) => s + (Number(p.belopp) || 0), 0);
   const netto = summaIn - summaUt;
 
-  let html = '';
+  let html = topp;
 
   if(akuta.length){
     html += '<div class="card akut"><h2>⏰ Brådskar</h2>';
@@ -1703,10 +2264,59 @@ function renderMer(){
       '<button class="btn small danger" onclick="App.loggaUt()">Logga ut</button>' +
       '</div>';
   } else {
-    html += '<p class="small muted">Logga in på Idag-fliken med samma e-post och lösenord som i Skrivbordet.</p>' +
+    html += '<p class="small muted">Logga in på Idag-fliken — eller skapa ett eget konto där med din e-post.</p>' +
       '<div class="knapprad"><button class="btn small" onclick="App.go(\'idag\')">Till inloggningen</button></div>';
   }
   html += '</div>';
+
+  /* om mig: det som styr assistentens ton och kunskap */
+  if(session){
+    const a = agare() || {};
+    html += '<div class="card"><h2>🖋 Om mig</h2>' +
+      '<p class="small muted">Det här formar assistenten efter just dig — namnet och beskrivningen vävs in i allt den gör.</p>' +
+      '<div class="ny-form" style="margin-top:8px">' +
+      '<input type="text" id="agNamnMer" placeholder="Ditt förnamn" value="' + esc(a.namn || '') + '">' +
+      '<textarea id="agBeskrMer" style="min-height:80px" placeholder="Kort om dig: vad du jobbar med, hur livet ser ut, vad du vill ha hjälp med.">' + esc(a.beskrivning || '') + '</textarea>' +
+      '<div class="knapprad"><button class="btn small" onclick="App.agareSpara(true)">Spara</button></div>' +
+      '</div></div>';
+  }
+
+  /* hemifrån-listor */
+  if(session){
+    const KORT = ['mån','tis','ons','tors','fre','lör','sön'];
+    const NAR_NAMN = { morgon: 'morgnar', dag: 'dagtid', kvall: 'kvällar', alltid: 'hela dagen' };
+    html += '<div class="card"><h2>🎒 Hemifrån-listor</h2>' +
+      '<p class="small muted">Små listor (3–6 saker) som dyker upp överst på Idag i rätt ögonblick — en blick på tre sekunder innan du går, inget att bocka av. T.ex. <i>Jobb: nycklar, passerkort, matlåda</i>.</p>';
+    for(const l of hemifranLista()){
+      const dagtext = (l.dagar && l.dagar.length) ? l.dagar.slice().sort().map(i => KORT[i]).join(' ') : 'alla dagar';
+      html += '<div class="rad"><span class="r-emoji">🎒</span>' +
+        '<span class="r-text"><b>' + esc(l.namn) + '</b> — ' + esc(l.saker) +
+        '<div class="p-datum">' + esc(dagtext + ', ' + (NAR_NAMN[l.nar] || 'hela dagen')) + '</div></span>' +
+        '<button class="btn small ghost" onclick="App.hemRedigera(\'' + l.id + '\')">✎</button>' +
+        '<button class="p-bort" title="Ta bort" onclick="App.hemBort(\'' + l.id + '\')">✕</button>' +
+        '</div>';
+    }
+    if(hemForm){
+      html += '<div class="ny-form" style="margin-top:10px">' +
+        '<input type="text" id="hemNamn" placeholder="Namn (Jobb, Gym, Handla …)" value="' + esc(hemForm.namn) + '">' +
+        '<input type="text" id="hemSaker" placeholder="Sakerna, med komma emellan: nycklar, passerkort, matlåda" value="' + esc(hemForm.saker) + '">' +
+        '<div class="dagvalj">' +
+        ['M','T','O','T','F','L','S'].map((b, i) =>
+          '<button type="button" class="' + (hemForm.dagar.includes(i) ? 'vald' : '') + '" onclick="App.hemDag(' + i + ')">' + b + '</button>'
+        ).join('') + '</div>' +
+        '<select id="hemNar">' +
+        [['morgon','Visas på morgonen (05–11)'],['dag','Visas dagtid (11–17)'],['kvall','Visas på kvällen (17–23)'],['alltid','Visas hela dagen']]
+          .map(x => '<option value="' + x[0] + '"' + (hemForm.nar === x[0] ? ' selected' : '') + '>' + x[1] + '</option>').join('') +
+        '</select>' +
+        '<div class="knapprad">' +
+        '<button class="btn small" onclick="App.hemSpara()">Spara listan</button>' +
+        '<button class="btn small ghost" onclick="App.hemAvbryt()">Avbryt</button>' +
+        '</div></div>';
+    } else {
+      html += '<div class="knapprad"><button class="btn small ghost" onclick="App.hemNy()">+ Ny lista</button></div>';
+    }
+    html += '</div>';
+  }
 
   /* notiser */
   html += '<div class="card"><h2>🔔 Notiser</h2>';
@@ -1754,7 +2364,7 @@ function renderMer(){
 
   /* om */
   html += '<div class="card"><h2>🖋 Om Assistenten</h2>' +
-    '<p class="small muted">Din stillsamma sekreterare. Hämtar karriärläget och jobbresorna från Skrivbordet, barnens schema från Vardagskoll, och lämnar varje morgon en brief över dagen — som en riktig 1800-talssekreterare, fast utan fjäderpennan.</p>' +
+    '<p class="small muted">Din stillsamma sekreterare. Formar sig efter den som loggar in: håller planerna med vännerna levande, räknar lugnt på pengarna och lämnar varje morgon en brief över dagen — som en riktig 1800-talssekreterare, fast utan fjäderpennan. (Använder du också Skrivbordet eller Vardagskoll vävs karriärläget och barnens schema in av sig självt.)</p>' +
     '<div class="knapprad"><button class="btn small danger" onclick="App.nollstall()">Nollställ appen på den här enheten</button></div></div>';
 
   html += '<p class="center small dim">Assistenten 🖋 — i din tjänst.</p>';
@@ -1771,6 +2381,7 @@ function renderAll(){
   renderIntervju();
   renderIdag();
   renderBevaka();
+  renderPlaner();
   renderEkonomi();
   renderMejl();
   renderMer();
@@ -1781,7 +2392,7 @@ const App = {
   tab: 'idag',
   go(tab){
     this.tab = tab;
-    for(const t of ['idag','bevaka','ekonomi','mejl','mer','intervju']){
+    for(const t of ['idag','bevaka','planer','ekonomi','mejl','mer','intervju']){
       const vy = document.getElementById('view-' + t);
       if(vy) vy.classList.toggle('open', t === tab);
       const knapp = document.getElementById('tab-' + t);
@@ -1887,7 +2498,7 @@ const App = {
     document.getElementById('ekoTypIn').className = typ === 'in' ? 'vald-in' : '';
     document.getElementById('ekoTypUt').className = typ === 'ut' ? 'vald-ut' : '';
   },
-  /* Läser av en bifogad faktura (bild/PDF) och fyller i tomma fält åt Anna.
+  /* Läser av en bifogad faktura (bild/PDF) och fyller i tomma fält åt ägaren.
      Ingen omritning görs — då skulle det valda fil-objektet tappas — utan
      fälten uppdateras direkt i DOM, precis som ekoTyp. */
   async ekoFilVald(input){
@@ -1931,7 +2542,7 @@ const App = {
       if(!res.ok || !data || !data.text) throw new Error('http ' + res.status);
       const r = tolkaJSONObjekt(data.text);
       if(!r){ setStatus('Kunde inte tyda fakturan — fyll i själv.'); return; }
-      /* fyll bara fält som är tomma, så det Anna redan skrivit står kvar */
+      /* fyll bara fält som är tomma, så det som redan skrivits står kvar */
       const beskrEl = document.getElementById('ekoBeskr');
       const beloppEl = document.getElementById('ekoBelopp');
       const datumEl = document.getElementById('ekoDatum');
@@ -2006,6 +2617,290 @@ const App = {
   toggleEkoArkiv(){
     visaEkoArkiv = !visaEkoArkiv;
     renderEkonomi();
+  },
+
+  /* ---- grunden & dagsbudgeten ---- */
+  grundForm(open){
+    ekoGrundForm = open;
+    renderEkonomi();
+  },
+  grundSpara(){
+    const golv = Number(document.getElementById('grundGolv').value);
+    const lonedag = Number(document.getElementById('grundLonedag').value);
+    const fasta = Number(document.getElementById('grundFasta').value);
+    if(!golv || !lonedag || lonedag < 1 || lonedag > 28){ toast('Fyll i golvlön och en lönedag mellan 1 och 28'); return; }
+    if(!sparaAppdata({ ekonomi: Object.assign({}, ekoGrund() || {}, { golvlon: golv, lonedag: lonedag, fasta: fasta || 0 }) })) return;
+    ekoGrundForm = false;
+    renderEkonomi();
+    renderIdag();
+    toast('Grunden är lagd 🌱');
+  },
+  saldonSpara(){
+    const kEl = document.getElementById('saldoKonto');
+    const bEl = document.getElementById('saldoBuffert');
+    const k = kEl && kEl.value !== '' ? Number(kEl.value) : null;
+    const b = bEl && bEl.value !== '' ? Number(bEl.value) : null;
+    if(k === null && b === null){ toast('Skriv in minst ett saldo'); return; }
+    const idag = fmtDate(todayDate());
+    if(k !== null){
+      const s = huvudSaldo();
+      if(s){ s.belopp = k; s.uppdaterad = idag; }
+      else state.ekonomiSaldon.push({ konto: 'Kontot', belopp: k, uppdaterad: idag });
+    }
+    if(b !== null){
+      const s = buffertSaldo();
+      if(s){ s.belopp = b; s.uppdaterad = idag; }
+      else state.ekonomiSaldon.push({ konto: 'Buffert', belopp: b, uppdaterad: idag });
+    }
+    save();
+    scheduleEkonomiPush();
+    renderEkonomi();
+    renderIdag();
+    toast('Uppdaterat 🖋');
+  },
+  oforutsettForm(open){
+    ekoOforutsett = open;
+    renderEkonomi();
+    if(open){ const el = document.getElementById('oforutsettBelopp'); if(el) el.focus(); }
+  },
+  /* oförutsedd utgift: inget "du överskred budgeten" — bara den nya siffran */
+  oforutsettSpara(){
+    const belopp = Number(document.getElementById('oforutsettBelopp').value);
+    if(!belopp){ toast('Skriv in vad det kostade'); return; }
+    const s = huvudSaldo();
+    if(!s){ toast('Skriv in kontosaldot först, så kan jag räkna'); return; }
+    const fore = dagsbudget();
+    s.belopp = (Number(s.belopp) || 0) - belopp;
+    s.uppdaterad = fmtDate(todayDate());
+    ekoOforutsett = false;
+    save();
+    scheduleEkonomiPush();
+    renderEkonomi();
+    renderIdag();
+    const efter = dagsbudget();
+    if(fore && efter) toast('Det blir ' + efter.perDag + ' kr/dag i stället för ' + fore.perDag + ' fram till den ' + Number(ekoGrund().lonedag) + ':e.');
+    else toast('Omräknat 🖋');
+  },
+  lonInskriven(){
+    const belopp = Number(document.getElementById('lonBelopp').value);
+    if(!belopp){ toast('Skriv in vad som kom in'); return; }
+    const overskott = Math.max(0, belopp - Number(ekoGrund().golvlon));
+    /* förslag: drygt hälften av överskottet, jämna hundralappar */
+    const forslag = Math.min(overskott, Math.max(100, Math.round(overskott * 0.6 / 100) * 100));
+    ekoLonSvar = { overskott: overskott, forslag: forslag };
+    renderEkonomi();
+  },
+  lonFlytta(){
+    if(!ekoLonSvar) return;
+    const idag = fmtDate(todayDate());
+    const s = buffertSaldo();
+    if(s){ s.belopp = (Number(s.belopp) || 0) + ekoLonSvar.forslag; s.uppdaterad = idag; }
+    else state.ekonomiSaldon.push({ konto: 'Buffert', belopp: ekoLonSvar.forslag, uppdaterad: idag });
+    save();
+    scheduleEkonomiPush();
+    this.lonKlar();
+    toast('🛡️ Bufferten växte — glöm inte själva överföringen i banken.');
+  },
+  lonKlar(){
+    const t = todayDate();
+    sparaAppdata({ ekonomi: Object.assign({}, ekoGrund() || {}, { lonKollad: t.getFullYear() + '-' + pad2(t.getMonth() + 1) }) });
+    ekoLonSvar = null;
+    renderEkonomi();
+  },
+
+  /* ---- ägaren: vem appen jobbar för ---- */
+  agareSpara(iMer){
+    const suffix = iMer ? 'Mer' : '';
+    const namnEl = document.getElementById('agNamn' + suffix);
+    const beskrEl = document.getElementById('agBeskr' + suffix);
+    const namn = ((namnEl && namnEl.value) || '').trim();
+    const beskrivning = ((beskrEl && beskrEl.value) || '').trim();
+    if(!namn){ toast('Skriv åtminstone ditt förnamn'); return; }
+    if(!sparaAppdata({ agare: { namn: namn, beskrivning: beskrivning } })) return;
+    renderAll();
+    toast('Trevligt att träffas, ' + namn + ' 🖋');
+  },
+
+  /* ---- planer ---- */
+  planFormVisa(open){
+    planFormOpen = open;
+    renderPlaner();
+  },
+  planNySjalv(){
+    const vem = document.getElementById('planVem').value.trim();
+    const vad = document.getElementById('planVad').value.trim();
+    if(!vem || !vad){ toast('Fyll i vem och vad'); return; }
+    const status = document.getElementById('planStatusVal').value;
+    const datum = document.getElementById('planDatum').value || '';
+    const planer = planerLista().slice();
+    planer.push({
+      id: 'pl' + Date.now() + Math.random().toString(36).slice(2, 5),
+      vem: vem, vad: vad, status: PLAN_STATUS[status] ? status : 'namnd',
+      datum: datum, plats: '', oavklarat: '', citat: '',
+      skapad: new Date().toISOString(), uppdaterad: new Date().toISOString(), klar: false
+    });
+    if(!planerSpara(planer)) return;
+    planFormOpen = false;
+    renderPlaner();
+    renderIdag();
+    toast('Noterat 💛');
+  },
+  async planLasAv(){
+    const el = document.getElementById('planKlistraText');
+    const text = ((el && el.value) || '').trim();
+    if(!text){ toast('Klistra in ett utdrag först'); return; }
+    if(planLaser) return;
+    planLaser = true;
+    renderPlaner();
+    try{
+      const { res, data } = await aiAnrop({ ai: {
+        max_tokens: 2000,
+        system: planSystemPrompt(),
+        tool: PLAN_EXTRAKT_TOOL,
+        messages: [{ role: 'user', content: text }]
+      } });
+      if(res.status === 401){ toast('Du verkar utloggad — logga in igen på Idag-fliken.'); return; }
+      if(res.status === 429){ toast((data && data.message) || 'Dagens AI-gräns är nådd — försök imorgon.'); return; }
+      if(aiCreditSlut(data)){ toast('AI-kontots kredit verkar slut — fyll på på console.anthropic.com.'); return; }
+      if(!res.ok || !data || !data.text) throw new Error('http ' + res.status);
+      const r = tolkaJSONObjekt(data.text);
+      const nya = (r && Array.isArray(r.planer)) ? r.planer.filter(p => p && p.vem && p.vad) : [];
+      if(!nya.length){ toast('Jag hittade inga planer i utdraget'); return; }
+      const planer = planerLista().slice();
+      let n = 0;
+      for(const p of nya){
+        planer.push({
+          id: 'pl' + Date.now() + Math.random().toString(36).slice(2, 5) + (n++),
+          vem: String(p.vem), vad: String(p.vad),
+          status: PLAN_STATUS[p.status] ? p.status : 'namnd',
+          datum: (p.datum && /^\d{4}-\d{2}-\d{2}$/.test(p.datum)) ? p.datum : '',
+          plats: p.plats ? String(p.plats) : '',
+          oavklarat: p.oavklarat ? String(p.oavklarat) : '',
+          citat: p.citat ? String(p.citat).slice(0, 600) : '',
+          skapad: new Date().toISOString(), uppdaterad: new Date().toISOString(), klar: false
+        });
+      }
+      if(!planerSpara(planer)) return;
+      if(el) el.value = '';
+      toast(n === 1 ? 'Ett plankort sparat 💛' : n + ' plankort sparade 💛');
+    }catch(e){
+      toast('Kunde inte läsa av utdraget just nu — försök igen om en stund');
+    }finally{
+      planLaser = false;
+      renderPlaner();
+      renderIdag();
+    }
+  },
+  planStatus(id, status){
+    const planer = planerLista().slice();
+    const p = planer.find(x => x.id === id);
+    if(!p || !PLAN_STATUS[status]) return;
+    p.status = status;
+    p.uppdaterad = new Date().toISOString();
+    planerSpara(planer);
+    renderPlaner();
+    renderIdag();
+  },
+  planKlar(id){
+    const planer = planerLista().slice();
+    const p = planer.find(x => x.id === id);
+    if(!p) return;
+    p.klar = true;
+    p.klarNar = new Date().toISOString();
+    p.uppdaterad = new Date().toISOString();
+    planerSpara(planer);
+    renderPlaner();
+    renderIdag();
+    toast('Skönt — avklarat 💛');
+  },
+  planBort(id){
+    if(!confirm('Ta bort planen helt?')) return;
+    planerSpara(planerLista().filter(x => x.id !== id));
+    renderPlaner();
+    renderIdag();
+  },
+  togglePlanArkiv(){
+    visaPlanArkiv = !visaPlanArkiv;
+    renderPlaner();
+  },
+  planForesla(id){
+    planForslagId = id;
+    renderPlaner();
+  },
+  /* kopieras förslaget har det (troligen) skickats — en nämnd plan flyttas
+     då till Föreslagen av sig själv; pillren finns om det blev fel */
+  planKopiera(id){
+    kopieraText(forslagText());
+    const planer = planerLista().slice();
+    const p = planer.find(x => x.id === id);
+    if(p && p.status === 'namnd'){
+      p.status = 'foreslagen';
+      p.uppdaterad = new Date().toISOString();
+      planerSpara(planer);
+    }
+    planForslagId = null;
+    renderPlaner();
+    renderIdag();
+  },
+
+  /* ---- hemifrån-listor ---- */
+  hemNy(){
+    hemForm = { id: null, namn: '', saker: '', dagar: [], nar: 'morgon' };
+    renderMer();
+  },
+  hemRedigera(id){
+    const l = hemifranLista().find(x => x.id === id);
+    if(!l) return;
+    hemForm = { id: l.id, namn: l.namn, saker: l.saker, dagar: (l.dagar || []).slice(), nar: l.nar || 'morgon' };
+    renderMer();
+  },
+  hemAvbryt(){
+    hemForm = null;
+    renderMer();
+  },
+  /* fältvärdena in i hemForm före varje omritning, så inget skrivet tappas */
+  hemLasFalt(){
+    if(!hemForm) return;
+    const n = document.getElementById('hemNamn');
+    const s = document.getElementById('hemSaker');
+    const r = document.getElementById('hemNar');
+    if(n) hemForm.namn = n.value;
+    if(s) hemForm.saker = s.value;
+    if(r) hemForm.nar = r.value;
+  },
+  hemDag(i){
+    if(!hemForm) return;
+    this.hemLasFalt();
+    const idx = hemForm.dagar.indexOf(i);
+    if(idx >= 0) hemForm.dagar.splice(idx, 1);
+    else hemForm.dagar.push(i);
+    renderMer();
+  },
+  hemSpara(){
+    this.hemLasFalt();
+    const namn = hemForm.namn.trim();
+    const saker = hemForm.saker.trim();
+    if(!namn || !saker){ toast('Fyll i namn och saker, med komma emellan'); return; }
+    if(session && !state.dataTid){ toast('⏳ Vänta en liten stund — jag hämtar kontot först'); return; }
+    const listor = hemifranLista().slice();
+    if(hemForm.id){
+      const l = listor.find(x => x.id === hemForm.id);
+      if(l){ l.namn = namn; l.saker = saker; l.dagar = hemForm.dagar.slice(); l.nar = hemForm.nar; }
+    } else {
+      listor.push({ id: 'h' + Date.now() + Math.random().toString(36).slice(2, 5), namn: namn, saker: saker, dagar: hemForm.dagar.slice(), nar: hemForm.nar });
+    }
+    sparaAppdata({ hemifran: listor });
+    hemForm = null;
+    renderMer();
+    renderIdag();
+    toast('Listan är sparad 🎒');
+  },
+  hemBort(id){
+    if(!confirm('Ta bort listan?')) return;
+    sparaAppdata({ hemifran: hemifranLista().filter(x => x.id !== id) });
+    hemForm = null;
+    renderMer();
+    renderIdag();
   },
   bilagaValj(id){
     const inp = document.createElement('input');
@@ -2088,7 +2983,7 @@ const App = {
     prataSkickar = true;
     renderIdag();
     try{
-      /* länkar Anna klistrat in läses av direkt — det sparar en runda.
+      /* inklistrade länkar läses av direkt — det sparar en runda.
          Vill modellen läsa MER (undersidor, källor) använder den verktyget
          oppna_lank i agent-rundorna nedan. */
       const lankResultat = [];
@@ -2108,7 +3003,7 @@ const App = {
       for(const l of lankResultat){
         delar.push({ type: 'text', text: l.innehall
           ? 'Innehåll från länken ' + l.url + ':\n"""' + l.innehall + '"""'
-          : 'Länken ' + l.url + ' gick inte att öppna eller läsa av — säg det till Anna i stället för att gissa vad den innehåller.' });
+          : 'Länken ' + l.url + ' gick inte att öppna eller läsa av — säg det i stället för att gissa vad den innehåller.' });
       }
       let huvudText = text || (bifogad ? 'Vad ser du i den här bilden/filen?' : 'Titta på länken och berätta vad den handlar om.');
       const sistaContent = (bifogad || delar.length)
@@ -2117,7 +3012,7 @@ const App = {
 
       /* ---- agent-rundorna: modellen väljer verktyg (öppna länk, sök,
          svara) tills den avslutar med svara. Sista rundan tvingas svara
-         fram så Anna alltid får ett svar. ---- */
+         fram så ägaren alltid får ett svar. ---- */
       const MAX_RUNDOR = 5;
       let meddelanden = historik.concat([{ role: 'user', content: sistaContent }]);
       let resultat = null;
@@ -2170,7 +3065,7 @@ const App = {
           if(v.name === 'oppna_lank' && v.input && v.input.url){
             prataVisaStatus('📖 Läser ' + kortAdress(v.input.url) + '…');
             ut = (await hamtaLankText(String(v.input.url))) ||
-              'Sidan gick inte att öppna eller läsa av. Säg det till Anna — gissa inte vad den innehåller.';
+              'Sidan gick inte att öppna eller läsa av. Säg det — gissa inte vad den innehåller.';
           } else if(v.name === 'sok_webben' && v.input && v.input.fraga){
             prataVisaStatus('🔍 Söker på webben…');
             ut = await webbSok(String(v.input.fraga));
@@ -2231,6 +3126,37 @@ const App = {
         andrat = true;
       }
       if(andrat){ save(); schedulePosterPush(); renderBevaka(); }
+      /* sociala planer direkt från chatten — nya kort och statusändringar */
+      const planTillagg = Array.isArray(resultat.planer) ? resultat.planer : [];
+      const planAndringar = Array.isArray(resultat.andra_planer) ? resultat.andra_planer : [];
+      if(planTillagg.length || planAndringar.length){
+        const planer = planerLista().slice();
+        let planAndrat = false, pn = 0;
+        for(const p of planTillagg){
+          if(!p || !p.vem || !p.vad) continue;
+          planer.push({
+            id: 'pl' + Date.now() + Math.random().toString(36).slice(2, 5) + (pn++),
+            vem: String(p.vem), vad: String(p.vad),
+            status: PLAN_STATUS[p.status] ? p.status : 'namnd',
+            datum: p.datum ? String(p.datum) : '',
+            plats: '', oavklarat: p.oavklarat ? String(p.oavklarat) : '', citat: '',
+            skapad: new Date().toISOString(), uppdaterad: new Date().toISOString(), klar: false
+          });
+          planAndrat = true;
+        }
+        for(const a of planAndringar){
+          const sok = String((a && a.matcha_vem) || '').toLowerCase();
+          if(!sok) continue;
+          const p = planer.find(x => !x.klar && String(x.vem).toLowerCase().includes(sok));
+          if(!p){ extra += ' (Jag hittade ingen plan att ändra som matchade.)'; continue; }
+          if(a.ny_status === 'klar'){ p.klar = true; p.klarNar = new Date().toISOString(); }
+          else if(a.ny_status && PLAN_STATUS[a.ny_status]) p.status = a.ny_status;
+          if(a.nytt_datum !== undefined && a.nytt_datum !== null) p.datum = String(a.nytt_datum);
+          p.uppdaterad = new Date().toISOString();
+          planAndrat = true;
+        }
+        if(planAndrat){ planerSpara(planer); renderPlaner(); }
+      }
       /* ekonomiåtgärder direkt från chatten — samma hantering som
          ekonomichatten (App.ekoSkicka), men flera åtgärder i ett svar */
       const ekoLista = Array.isArray(resultat.ekonomi) ? resultat.ekonomi : [];
@@ -2366,7 +3292,7 @@ const App = {
     intervju.laege = 'utlatande';
     renderIntervju();
     /* skriv utlåtandet direkt när frågorna är klara — men skriv aldrig över
-       ett utlåtande som redan finns (utkast eller sparat) utan att Anna ber om det */
+       ett utlåtande som redan finns (utkast eller sparat) utan att ägaren ber om det */
     const iv = (state.data && state.data.intervjuer) || {};
     const finnsUtlatande = intervju.utkast !== null || (iv[intervju.typ] && iv[intervju.typ].utlatande);
     const harSvar = Object.values(intervju.svar).some(v => (v || '').trim());
@@ -2405,11 +3331,13 @@ const App = {
     renderIntervju();
     try{
       const profil = state.data && state.data.profil && state.data.profil.text;
-      const system = 'Du är Annas personliga assistent — en stillsam, varm och kunnig sekreterare.\n' +
+      const N = agNamn() || 'användaren';
+      const system = 'Du är ' + genitiv(agNamn()) + ' personliga assistent — en stillsam, varm och kunnig sekreterare.\n' +
+        agRad() +
         'Ämne: ' + INTERVJUER[intervju.typ].beskrivning + '.\n' +
-        (profil ? '\nDina egna anteckningar om Anna (håll dem för dig själv):\n' + profil + '\n' : '') +
-        '\nHär är Annas svar på ett antal frågor om ämnet:\n' + JSON.stringify(ihopsamlat) + '\n\n' +
-        'Skriv ett utlåtande TILL dig själv (assistenten) om Anna, 120–250 ord på svenska, i tredje person, sakligt och varmt — det ska hjälpa dig stötta henne rätt i vardagen. Bygg bara på det hon faktiskt skrivit, hitta inget på. Svara ENBART med utlåtandets text, ingen rubrik, inga citattecken.';
+        (profil ? '\nDina egna anteckningar om ' + N + ' (håll dem för dig själv):\n' + profil + '\n' : '') +
+        '\nHär är ' + genitiv(N) + ' svar på ett antal frågor om ämnet:\n' + JSON.stringify(ihopsamlat) + '\n\n' +
+        'Skriv ett utlåtande TILL dig själv (assistenten) om ' + N + ', 120–250 ord på svenska, i tredje person, sakligt och varmt — det ska hjälpa dig stötta rätt i vardagen. Bygg bara på det som faktiskt är skrivet, hitta inget på. Svara ENBART med utlåtandets text, ingen rubrik, inga citattecken.';
       const { res, data } = await aiAnrop({ ai: { system: system, max_tokens: 3000, messages: [{ role: 'user', content: 'Skriv utlåtandet.' }] } });
       if(res.status === 401){ toast('Du verkar utloggad — logga in igen på Idag-fliken.'); return; }
       if(res.status === 429){ toast((data && data.message) || 'Dagens AI-gräns är nådd — försök igen imorgon.'); return; }
