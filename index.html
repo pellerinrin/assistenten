@@ -984,7 +984,9 @@ function prataSystemPrompt(){
     ' Saldon: ' + JSON.stringify(state.ekonomiSaldon) + '\n' +
     'Ur mejlen: viktiga: ' + JSON.stringify((mejl.viktiga || []).slice(0, 8)) +
     ' obesvarade: ' + JSON.stringify((mejl.obesvarade || []).slice(0, 8)) +
-    ' datum som hittats: ' + JSON.stringify((mejl.datumfynd || []).slice(0, 10)) + '\n\n' +
+    ' datum som hittats: ' + JSON.stringify((mejl.datumfynd || []).slice(0, 10)) +
+    ' räkningar ur morgonens mejlsvep (ser obetalda ut, ej dubbletter av ekonomilistan): ' + JSON.stringify((mejl.rakningar || []).slice(0, 10)) + '\n' +
+    'Frågar Anna om obetalda räkningar i inkorgen: utgå från "räkningar ur morgonens mejlsvep" ovan (svepet görs varje morgon, ca 45 dagar bakåt) plus ekonomilistan — säg inte att du saknar tillgång till inkorgen, men nämn att svepet är från i morse om det spelar roll.\n\n' +
     'DINA VERKTYG — du arbetar i rundor och MÅSTE anropa ett verktyg varje runda:\n' +
     '- oppna_lank: öppnar en webbadress och ger dig sidans text. Du kan öppna flera sidor i följd, och även undersidor du bygger själv (t.ex. lägga till /om eller /kontakt på en adress Anna gett dig). Säg ALDRIG att du inte kan öppna länkar eller klicka dig vidare — du kan.\n' +
     '- sok_webben: söker på webben efter aktuell information (nyheter, öppettider, evenemang, fakta). Använd den hellre än att gissa om något du inte vet säkert.\n' +
