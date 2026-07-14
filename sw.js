@@ -1,7 +1,7 @@
 /* Service worker för Assistenten — gör appen installerbar och offline-bar. */
 'use strict';
 
-const CACHE_VERSION = 'assistenten-v3';
+const CACHE_VERSION = 'assistenten-v4';
 const APP_SHELL = [
   './',
   './index.html',

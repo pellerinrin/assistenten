@@ -216,6 +216,7 @@ input:focus,select:focus,textarea:focus{outline:none; border-color:var(--bronze)
 .statusrad button.vald{border-color:var(--green); background:var(--green); color:#fff}
 .forslag-ruta{background:var(--paper); border:1px dashed var(--line); border-radius:10px; padding:9px 11px; margin-top:8px; font-size:14px}
 .forslag-ruta .fr-text{font-family:Georgia,serif; font-style:italic}
+.tips-text{white-space:pre-wrap; font-size:14px; line-height:1.55; margin-top:8px; border-top:1px solid var(--line-soft); padding-top:8px}
 
 /* ---- pengaläget ---- */
 .pengarad{display:flex; align-items:baseline; gap:8px; margin:4px 0}
@@ -343,6 +344,13 @@ function gissaOmrade(rubrik){
 const SUPABASE_URL = 'https://sqhpkzkkveqvkqmohzpc.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_s02x24M_xX4MHdqcU7ncYQ_T9ctHXKZ';
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* byggaren av appen — önskemål och felanmälningar mejlas hit, och rutan
+   för dem döljs på byggarens eget konto */
+const BYGGARE_EPOST = 'anna.axfors@gmail.com';
+function arByggare(){
+  return !!(session && session.user && String(session.user.email || '').toLowerCase() === BYGGARE_EPOST);
+}
 
 let session = null; /* null = utloggad (eller inte klar ännu) */
 let authFel = '';
@@ -720,6 +728,15 @@ async function kopieraText(text){
    sekunder, ingen checklista att bocka av i dörren. ---- */
 function hemifranLista(){ return Array.isArray(appdata().hemifran) ? appdata().hemifran : []; }
 let hemForm = null; /* pågående redigering under Mer: { id?, namn, saker, dagar, nar } */
+
+/* ---- arbetstider: vilka dagar och tider ägaren jobbar. Läggs in i klump
+   (period + veckodagar + tid) och syns i "Läget idag" och i veckobilden
+   assistenten får. Ett pass per datum — nytt på samma datum ersätter. ---- */
+function jobbpassLista(){ return Array.isArray(appdata().jobbpass) ? appdata().jobbpass : []; }
+function jobbpassFor(ds){ return jobbpassLista().find(p => p.datum === ds) || null; }
+/* formulärets läge hålls i minnet så veckodagsknapparna kan ritas om utan
+   att datum och tider tappas */
+let passForm = { fran: '', till: '', start: '08:00', slut: '16:30', dagar: [0, 1, 2, 3, 4] };
 function hemifranNu(){
   const t = new Date();
   const timme = t.getHours();
@@ -979,6 +996,10 @@ function renderIdag(){
 
   /* ---- läget idag ---- */
   let lage = '';
+  const passIdag = jobbpassFor(ts);
+  const passImorgon = jobbpassFor(fmtDate(addDays(t, 1)));
+  if(passIdag) lage += radHtml('💼', 'Jobb idag ' + esc(passIdag.start + '–' + passIdag.slut));
+  else if(passImorgon) lage += radHtml('💼', 'Jobb imorgon ' + esc(passImorgon.start + '–' + passImorgon.slut));
   if(vk){
     const barnIdag = vk.barnDagar && vk.barnDagar[ts];
     const barnImorgon = vk.barnDagar && vk.barnDagar[fmtDate(addDays(t,1))];
@@ -1206,6 +1227,56 @@ function planSystemPrompt(){
     'Anropa verktyget "planer" — med tom lista om inga planer går att utläsa.';
 }
 
+/* ---- tips & förslag: aktiviteter och kultur, anpassat efter ägaren.
+   Ett tryck, färska förslag — aktiviteterna får söka på webben efter vad
+   som faktiskt är på gång där ägaren bor. ---- */
+const TIPS_TYPER = {
+  aktiviteter: { namn: 'Aktiviteter', emoji: '🌞', web: true,
+    uppdrag: 'Föreslå 5 aktiviteter för de närmaste dagarna. Anpassa efter vem användaren är, årstiden, vädret och en tunn plånbok — blanda gratis och billigt. Framgår det var användaren bor: sök på webben efter aktuella evenemang, utställningar och öppettider just där. Gärna minst ett förslag att göra ihop med någon ur planerna, om det finns några.' },
+  film: { namn: 'Film & serier', emoji: '🎬', web: false,
+    uppdrag: 'Föreslå 5 filmer eller serier. Blanda nytt och äldre, lätt och tyngre, och säg var de brukar gå att se.' },
+  poddar: { namn: 'Poddar', emoji: '🎧', web: false,
+    uppdrag: 'Föreslå 5 poddar (gärna både svenska och engelska) och för var och en ett bra avsnitt att börja med.' },
+  bocker: { namn: 'Böcker', emoji: '📚', web: false,
+    uppdrag: 'Föreslå 5 böcker. Blanda skönlitteratur och fackböcker, nytt och klassiskt.' },
+};
+let tipsLaddar = null;   /* typ som hämtas just nu */
+let tipsResultat = null; /* { typ, text } — bara i minnet, hämta om är billigt */
+
+function tipsSystemPrompt(typ){
+  const info = TIPS_TYPER[typ];
+  const t = todayDate();
+  const profil = state.data && state.data.profil && state.data.profil.text;
+  const planer = planerLista().filter(p => !p.klar).map(p => ({ vem: p.vem, vad: p.vad, status: p.status }));
+  return 'Du är ' + genitiv(agNamn()) + ' personliga assistent — stillsam, varm och kunnig.\n' +
+    agRad() +
+    'Idag är ' + WDAYS[wIdx(t)] + ' ' + fmtDate(t) + '.\n' +
+    (profil ? 'Dina egna anteckningar om användaren (håll dem för dig själv, citera aldrig):\n' + profil + '\n' : '') +
+    (utlatandenText() ? 'Användarens egna beskrivningar av sig själv:\n' + utlatandenText() : '') +
+    (typ === 'aktiviteter' && planer.length ? 'Öppna sociala planer: ' + JSON.stringify(planer) + '\n' : '') +
+    '\nUPPDRAG: ' + info.uppdrag + '\n' +
+    'Motivera varje förslag med en mening om varför det passar just den här personen. ' +
+    'Ton: vänligt och kravlöst — förslag, aldrig pekpinnar. ' +
+    'Svara på svenska, som en enkel lista med radbrytningar (ingen JSON, inga rubriker, ingen markdown).';
+}
+
+function tipsHtml(){
+  let html = '<div class="card"><h2>✨ Tips & förslag</h2>' +
+    '<p class="small muted">Hämta förslag utifrån det jag vet om dig — vad du gillar, vilka du umgås med och vad som är på gång.</p>' +
+    '<div class="alternativ" style="margin-bottom:0">' +
+    Object.keys(TIPS_TYPER).map(k =>
+      '<button type="button" class="' + ((tipsResultat && tipsResultat.typ === k) || tipsLaddar === k ? 'vald' : '') + '"' +
+      (tipsLaddar ? ' disabled' : '') + ' onclick="App.tipsHamta(\'' + k + '\')">' +
+      TIPS_TYPER[k].emoji + ' ' + TIPS_TYPER[k].namn + '</button>'
+    ).join('') + '</div>';
+  if(tipsLaddar) html += '<p class="small dim" style="margin-top:8px">🖋 Letar efter något som passar dig…</p>';
+  if(tipsResultat){
+    html += '<div class="tips-text">' + esc(tipsResultat.text) + '</div>' +
+      '<div class="knapprad"><button class="btn small ghost" onclick="App.tipsHamta(\'' + tipsResultat.typ + '\')">🔄 Nya förslag</button></div>';
+  }
+  return html + '</div>';
+}
+
 function planHtml(p){
   const st = PLAN_STATUS[p.status] || PLAN_STATUS.namnd;
   let html = '<div class="plan">' +
@@ -1311,6 +1382,8 @@ function renderPlaner(){
     html += '</div>';
   }
 
+  html += tipsHtml();
+
   el.innerHTML = html;
 }
 
@@ -1389,6 +1462,8 @@ function prataSystemPrompt(){
   for(let i = 0; i < 7; i++){
     const dt = addDays(t, i), ds = fmtDate(dt);
     const bitar = [];
+    const pass = jobbpassFor(ds);
+    if(pass) bitar.push('jobb ' + pass.start + '–' + pass.slut);
     if(vk.barnDagar && vk.barnDagar[ds]) bitar.push('barnen hos ' + N);
     for(const b of (vk.barn || [])) if((b.gympa || []).includes(wIdx(dt))) bitar.push(b.namn + ' har gympa');
     if(vk.middagar && vk.middagar[ds] && vk.middagar[ds].name) bitar.push('middag: ' + vk.middagar[ds].name);
@@ -1410,7 +1485,7 @@ function prataSystemPrompt(){
     (utlatandenText() ? 'UTLÅTANDEN (' + genitiv(N) + ' egna godkända beskrivningar av sig själv — rätta dig alltid efter dem):\n' + utlatandenText() : '') +
     'DAGSLÄGET:\n' +
     (brief ? 'Dagens morgonbrief: ' + brief.halsning + ' ' + (brief.punkter || []).map(p => (p.rubrik ? p.rubrik + ': ' : '') + p.text).join(' ') + '\n' : 'Ingen morgonbrief har skrivits idag ännu.\n') +
-    (vecka.length ? 'Barnens och husets vecka:\n' + vecka.join('\n') + '\n' : '') +
+    (vecka.length ? 'Veckan (jobb, barn, hem):\n' + vecka.join('\n') + '\n' : '') +
     'Öppna bevakningar: ' + JSON.stringify(state.poster.filter(p => !p.klar).map(p => ({ omrade: p.omrade, text: p.text, datum: p.datum || null }))) + '\n' +
     'Sociala planer (fliken Planer; status: namnd = bara nämnt, foreslagen = datum ligger på bordet, bekraftad = båda sagt ja, kalender = inbokat): ' + JSON.stringify(oppnaPlaner) + '\n' +
     (resor.length ? 'Kommande jobbresor: ' + JSON.stringify(resor) + '\n' : '') +
@@ -2318,6 +2393,50 @@ function renderMer(){
     html += '</div>';
   }
 
+  /* arbetstider */
+  if(session){
+    const KORT = ['mån','tis','ons','tors','fre','lör','sön'];
+    const idagDs = fmtDate(todayDate());
+    const kommande = jobbpassLista().filter(p => p.datum >= idagDs)
+      .sort((a, b) => a.datum.localeCompare(b.datum));
+    html += '<div class="card"><h2>💼 Arbetstider</h2>' +
+      '<p class="small muted">Lägg in när du jobbar, så finns det med i "Läget idag" och i det assistenten vet om din vecka. Välj en period och veckodagar — alla dagarna läggs in på en gång.</p>';
+    for(const p of kommande.slice(0, 10)){
+      html += '<div class="rad"><span class="r-emoji">💼</span>' +
+        '<span class="r-text">' + esc(cap(humanDate(parseDate(p.datum))) + ' · ' + p.start + '–' + p.slut) + '</span>' +
+        '<button class="p-bort" title="Ta bort" onclick="App.passBort(\'' + p.id + '\')">✕</button>' +
+        '</div>';
+    }
+    if(kommande.length > 10) html += '<p class="small dim">… och ' + (kommande.length - 10) + ' pass till längre fram.</p>';
+    html += '<div class="ny-form" style="margin-top:10px">' +
+      '<div class="ny-rad2">' +
+      '<input type="date" id="passFran" title="Från och med" value="' + esc(passForm.fran) + '" style="flex:1">' +
+      '<input type="date" id="passTill" title="Till och med" value="' + esc(passForm.till) + '" style="flex:1">' +
+      '</div>' +
+      '<div class="dagvalj">' +
+      ['M','T','O','T','F','L','S'].map((b, i) =>
+        '<button type="button" class="' + (passForm.dagar.includes(i) ? 'vald' : '') + '" onclick="App.passDag(' + i + ')">' + b + '</button>'
+      ).join('') + '</div>' +
+      '<div class="ny-rad2">' +
+      '<input type="time" id="passStart" value="' + esc(passForm.start) + '" style="flex:1">' +
+      '<input type="time" id="passSlut" value="' + esc(passForm.slut) + '" style="flex:1">' +
+      '<button class="btn" onclick="App.passLaggIn()">Lägg in</button>' +
+      '</div>' +
+      '<p class="small dim">Första fältet = första dagen, andra = sista. Ett pass per dag — lägger du in samma dag igen ersätts tiden.</p>' +
+      '</div></div>';
+  }
+
+  /* önskemål & fel — appen byggs av en vän; rutan visas inte på byggarens konto */
+  if(session && !arByggare()){
+    html += '<div class="card"><h2>💌 Önskemål & fel</h2>' +
+      '<p class="small muted">Appen byggs för dig. Önska en funktion eller berätta vad som strular, så åker det direkt till byggaren.</p>' +
+      '<textarea id="onskemalText" style="min-height:80px" placeholder="Jag önskar att … / Det här funkar inte: …"></textarea>' +
+      '<div class="knapprad">' +
+      '<button class="btn small" onclick="App.onskemalSkicka()">📮 Öppna mejl och skicka</button>' +
+      '<button class="btn small ghost" onclick="App.onskemalKopiera()">Kopiera i stället</button>' +
+      '</div></div>';
+  }
+
   /* notiser */
   html += '<div class="card"><h2>🔔 Notiser</h2>';
   if(!('Notification' in window)){
@@ -2901,6 +3020,104 @@ const App = {
     hemForm = null;
     renderMer();
     renderIdag();
+  },
+
+  /* ---- arbetstider ---- */
+  passLasFalt(){
+    const f = document.getElementById('passFran');
+    const t = document.getElementById('passTill');
+    const s = document.getElementById('passStart');
+    const e = document.getElementById('passSlut');
+    if(f) passForm.fran = f.value;
+    if(t) passForm.till = t.value;
+    if(s) passForm.start = s.value;
+    if(e) passForm.slut = e.value;
+  },
+  passDag(i){
+    this.passLasFalt();
+    const idx = passForm.dagar.indexOf(i);
+    if(idx >= 0) passForm.dagar.splice(idx, 1);
+    else passForm.dagar.push(i);
+    renderMer();
+  },
+  passLaggIn(){
+    this.passLasFalt();
+    const fran = passForm.fran;
+    const till = passForm.till || passForm.fran; /* en enda dag går också bra */
+    if(!fran){ toast('Välj åtminstone en första dag'); return; }
+    if(till < fran){ toast('Sista dagen ligger före den första'); return; }
+    if(!passForm.start || !passForm.slut){ toast('Fyll i start- och sluttid'); return; }
+    if(!passForm.dagar.length){ toast('Välj minst en veckodag'); return; }
+    if(dagarTill(till) - dagarTill(fran) > 92){ toast('Max tre månader i taget'); return; }
+    if(session && !state.dataTid){ toast('⏳ Vänta en liten stund — jag hämtar kontot först'); return; }
+    /* gamla pass städas bort samtidigt — fjorton dagar bakåt räcker */
+    const grans = fmtDate(addDays(todayDate(), -14));
+    const pass = jobbpassLista().filter(p => p.datum >= grans);
+    let n = 0;
+    for(let d = parseDate(fran); fmtDate(d) <= till; d = addDays(d, 1)){
+      if(!passForm.dagar.includes(wIdx(d))) continue;
+      const ds = fmtDate(d);
+      const finns = pass.find(p => p.datum === ds);
+      if(finns){ finns.start = passForm.start; finns.slut = passForm.slut; }
+      else pass.push({ id: 'jp' + Date.now() + Math.random().toString(36).slice(2, 5) + n, datum: ds, start: passForm.start, slut: passForm.slut });
+      n++;
+    }
+    if(!n){ toast('Inga dagar i perioden matchade veckodagarna'); return; }
+    if(!sparaAppdata({ jobbpass: pass })) return;
+    passForm.fran = ''; passForm.till = '';
+    renderMer();
+    renderIdag();
+    toast(n === 1 ? 'Ett pass inlagt 💼' : n + ' pass inlagda 💼');
+  },
+  passBort(id){
+    if(!sparaAppdata({ jobbpass: jobbpassLista().filter(p => p.id !== id) })) return;
+    renderMer();
+    renderIdag();
+  },
+
+  /* ---- tips & förslag ---- */
+  async tipsHamta(typ){
+    if(!TIPS_TYPER[typ] || tipsLaddar) return;
+    if(!session){ toast('Logga in först'); return; }
+    tipsLaddar = typ;
+    tipsResultat = null;
+    renderPlaner();
+    try{
+      const { res, data } = await aiAnrop({ ai: {
+        web: TIPS_TYPER[typ].web || undefined,
+        max_tokens: 2500,
+        system: tipsSystemPrompt(typ),
+        messages: [{ role: 'user', content: 'Ge mig förslag.' }]
+      } });
+      if(res.status === 401){ toast('Du verkar utloggad — logga in igen på Idag-fliken.'); return; }
+      if(res.status === 429){ toast((data && data.message) || 'Dagens AI-gräns är nådd — vi försöker imorgon.'); return; }
+      if(aiCreditSlut(data)){ toast('AI-kontots kredit verkar slut — fyll på på console.anthropic.com.'); return; }
+      if(!res.ok || !data || !data.text || !String(data.text).trim()) throw new Error('http ' + res.status);
+      tipsResultat = { typ: typ, text: String(data.text).trim() };
+    }catch(e){
+      toast('Kunde inte hämta förslag just nu — försök igen om en stund');
+    }finally{
+      tipsLaddar = null;
+      renderPlaner();
+    }
+  },
+
+  /* ---- önskemål & fel: mejlas till byggaren — appen kan inte nå andra
+     konton på servern, så mejl är den raka vägen ---- */
+  onskemalSkicka(){
+    const el = document.getElementById('onskemalText');
+    const text = ((el && el.value) || '').trim();
+    if(!text){ toast('Skriv några rader först'); return; }
+    const fran = (session && session.user && session.user.email) || 'okänt konto';
+    location.href = 'mailto:' + BYGGARE_EPOST +
+      '?subject=' + encodeURIComponent('Assistenten: önskemål & fel') +
+      '&body=' + encodeURIComponent(text + '\n\n— skickat från Assistenten, inloggad som ' + fran);
+  },
+  onskemalKopiera(){
+    const el = document.getElementById('onskemalText');
+    const text = ((el && el.value) || '').trim();
+    if(!text){ toast('Skriv några rader först'); return; }
+    kopieraText(text + '\n(till ' + BYGGARE_EPOST + ')');
   },
   bilagaValj(id){
     const inp = document.createElement('input');

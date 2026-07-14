@@ -24,10 +24,10 @@ Vardagskoll (barnens schema)      ─┘         ▲
 
 - **Idag** — svarar på frågan *"vad behöver jag veta just nu?"*: hemifrån-listan i rätt ögonblick, morgonbrief, läget idag, pengaläget (kr/dag och buffert i dagar), en mjuk knuff när en social plan legat för länge, och chatten "Prata med mig" (text + röst; en riktig agent som kan öppna länkar, söka på webben, sköta bevakningar/planer/ekonomi och spara minnesanteckningar).
 - **Bevaka** — bevakningar per livsområde (barn, jobb & karriär, vänner & socialt, hushåll & ekonomi, hälsa).
-- **Planer** — appens privata minne av den sociala samordningen, som fortfarande sker i SMS/WhatsApp/Messenger. Klistra in ett chattutdrag → AI:n gör plankort med vem/vad/när, status och citatet sparat (aldrig mer scrolla tillbaka). Status: `nämnd → föreslagen → bekräftad → i kalendern` — det är mittenläget appen finns för att fånga. "Föreslå datum" ger färdig text att kopiera ("kan du fre 3/10 eller sön 5/10, typ 18?"), och en plan som legat i `nämnd` i tre veckor ger en vänlig knuff på Idag. Inga inbjudningar, ingen delning — fungerar även om ingen annan har appen.
+- **Planer** — appens privata minne av den sociala samordningen, som fortfarande sker i SMS/WhatsApp/Messenger. Klistra in ett chattutdrag → AI:n gör plankort med vem/vad/när, status och citatet sparat (aldrig mer scrolla tillbaka). Status: `nämnd → föreslagen → bekräftad → i kalendern` — det är mittenläget appen finns för att fånga. "Föreslå datum" ger färdig text att kopiera ("kan du fre 3/10 eller sön 5/10, typ 18?"), och en plan som legat i `nämnd` i tre veckor ger en vänlig knuff på Idag. Inga inbjudningar, ingen delning — fungerar även om ingen annan har appen. Längst ner finns **Tips & förslag**: en knapp var för aktiviteter (söker på webben efter vad som är på gång där ägaren bor), film & serier, poddar och böcker — allt anpassat efter ägarprofilen, utlåtandena och de öppna planerna.
 - **Ekonomi** — fakturor/räkningar med förfallodatum, saldon, fakturafoton med automatisk avläsning, egen chatt. Plus **grunden**: golvlön (lägsta rimliga månadslön — allt över är överskott), lönedag och fasta utgifter ger en **dagsbudget** (kvar-till-lön ÷ dagar till lön) och en **buffert mätt i dagar**, inte kronor. "Oförutsedd utgift" räknar bara om — aldrig skäll, aldrig röda siffror. Efter lönedagen ställs en enda fråga: *"Du fick X över golvet — flytta Y till bufferten?"* Saldon fylls i för hand (ingen bankintegration — tio sekunder, och du vet var du står).
 - **Mejl** — morgonjobbets sammanfattning av inkorgen.
-- **Mer** — konto, Om mig (ägarprofilen), hemifrån-listor, notiser, "Lär känna mig"-intervjuerna, samtalshistorik.
+- **Mer** — konto, Om mig (ägarprofilen), hemifrån-listor, **arbetstider** (lägg in en hel period på en gång: från–till + veckodagar + tid; syns i "Läget idag" och i assistentens veckobild), **önskemål & fel** (en ruta som öppnar ett färdigskrivet mejl till byggaren — visas inte på byggarens eget konto, se `BYGGARE_EPOST` i index.html), notiser, "Lär känna mig"-intervjuerna, samtalshistorik.
 
 ## Dataformat (kv_store-nycklar på kontot)
 
@@ -44,6 +44,7 @@ Vardagskoll (barnens schema)      ─┘         ▲
   - `appdata.planer` — `[{ id, vem, vad, status: namnd|foreslagen|bekraftad|kalender, datum?, plats?, oavklarat?, citat?, skapad, uppdaterad, klar?, klarNar? }]`
   - `appdata.ekonomi` — `{ golvlon, lonedag, fasta, lonKollad }` (`lonKollad` = "ÅÅÅÅ-MM" när månadens efter lön-fråga är avklarad)
   - `appdata.hemifran` — `[{ id, namn, saker, dagar: [0–6], nar: morgon|dag|kvall|alltid }]`
+  - `appdata.jobbpass` — `[{ id, datum, start, slut }]` — ett arbetspass per datum; pass äldre än två veckor städas bort vid nästa inläggning
 - `assistent-samtal-ÅÅÅÅ-MM` — samtalsloggen per månad `[{ id, t, roll: jag|ass, kanal: prata|ekonomi, text }]`
 
 Chattarna skickar `POST { ai: { system, messages, tools/tool } }` (med Bearer-token) till samma API; servern vidarebefordrar till Anthropic och räknar mot kontots dagliga AI-tak. Samma väg används för fakturaavläsning och för att läsa av inklistrade chattutdrag i Planer.
