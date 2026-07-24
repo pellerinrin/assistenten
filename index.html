@@ -155,7 +155,8 @@ input:focus,select:focus,textarea:focus{outline:none; border-color:var(--bronze)
 .bubbla img{display:block; max-width:100%; max-height:180px; border-radius:8px; margin-bottom:6px; cursor:pointer}
 .chatt-form{display:flex; gap:8px}
 .chatt-form input{flex:1; min-width:0}
-.chatt-bifogad{display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink-soft); background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:6px 10px; margin-bottom:6px}
+.chatt-bifogade{display:flex; flex-direction:column; gap:4px; margin-bottom:6px}
+.chatt-bifogad{display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink-soft); background:var(--paper); border:1px solid var(--line); border-radius:10px; padding:6px 10px}
 .chatt-bifogad img{width:32px; height:32px; object-fit:cover; border-radius:6px; flex:none}
 .chatt-bifogad button{border:none; background:none; cursor:pointer; font-size:14px; color:var(--ink-dim); margin-left:auto; flex:none}
 .mik{
@@ -672,19 +673,22 @@ function renderIdag(){
     (prataVisas.length ? '' : '<div class="bubbla ass">' + esc(HALSNING_PRATA) + '</div>') +
     prataVisas.map(m =>
       '<div class="bubbla ' + (m.roll === 'jag' ? 'jag' : 'ass') + '">' +
-      (prataBildPreviews[m.id] ? '<img src="' + prataBildPreviews[m.id] + '" onclick="visaBildOverlay({typ:\'image/jpeg\',data:prataBildPreviews[\'' + m.id + '\'],namn:\'bild\'})">' : '') +
+      (prataBildPreviews[m.id] ? prataBildPreviews[m.id].map((u, j) =>
+        '<img src="' + u + '" onclick="visaBildOverlay({typ:\'image/jpeg\',data:prataBildPreviews[\'' + m.id + '\'][' + j + '],namn:\'bild\'})">').join('') : '') +
       esc(m.text) +
       (m.roll === 'ass' && KAN_TALA ? ' <button class="las-upp" title="Läs upp" onclick="App.lasUpp(\'' + m.id + '\')">🔊</button>' : '') +
       '</div>').join('') +
     (prataSkickar ? '<div class="bubbla ass dim" id="prataStatusBubbla">' + esc(prataStatus || 'skriver…') + '</div>' : '') +
     '</div>' +
-    (prataBifogad ? '<div class="chatt-bifogad">' +
-      (prataBifogad.previewUrl ? '<img src="' + prataBifogad.previewUrl + '">' : '📄') +
-      '<span>' + esc(prataBifogad.namn) + '</span>' +
-      '<button onclick="App.prataTaBortBifogad()">✕</button></div>' : '') +
+    ((prataBifogade.length || prataLaserFiler) ? '<div class="chatt-bifogade">' + prataBifogade.map((b, i) =>
+      '<div class="chatt-bifogad">' +
+      (b.previewUrl ? '<img src="' + b.previewUrl + '">' : '📄') +
+      '<span>' + esc(b.namn) + '</span>' +
+      '<button title="Ta bort" onclick="App.prataTaBortBifogad(' + i + ')">✕</button></div>').join('') +
+      (prataLaserFiler ? '<div class="chatt-bifogad">⏳ Läser in filer…</div>' : '') + '</div>' : '') +
     '<div class="chatt-form">' +
-    '<label class="mik" title="Bifoga bild eller fil">📎' +
-    '<input type="file" accept="image/*,application/pdf" style="display:none" onchange="App.prataFilVald(this)"></label>' +
+    '<label class="mik" title="Bifoga bilder eller filer">📎' +
+    '<input type="file" accept="image/*,application/pdf" multiple style="display:none" onchange="App.prataFilVald(this)"></label>' +
     (KAN_LYSSNA ? '<button class="mik" id="prataMik" title="Prata in" onclick="App.rostLyssna()">🎤</button>' : '') +
     '<input type="text" id="prataInput" placeholder="Fråga, eller be mig komma ihåg något…" onkeydown="if(event.key===\'Enter\')App.prataSkicka(false)">' +
     '<button class="btn" onclick="App.prataSkicka(false)">Skicka</button>' +
@@ -902,11 +906,13 @@ function prataVisaStatus(text){
   const el = document.getElementById('prataStatusBubbla');
   if(el) el.textContent = prataStatus || 'skriver…';
 }
-/* en bifogad bild/PDF som väntar på att skickas, samt bildförhandsvisningar
-   till redan skickade meddelanden — bara i minnet, sparas aldrig till
-   servern eller localStorage (jfr fakturabilagor: bilden är tillfällig,
-   det som sägs om den sparas för alltid i samtalsloggen som vanlig text) */
-let prataBifogad = null;
+/* bifogade bilder/PDF:er som väntar på att skickas (en lista — flera filer
+   kan följa med samma meddelande), samt bildförhandsvisningar till redan
+   skickade meddelanden ({meddelandeId: [dataUrl, ...]}) — bara i minnet,
+   sparas aldrig till servern eller localStorage (jfr fakturabilagor: bilden
+   är tillfällig, det som sägs om den sparas för alltid i samtalsloggen) */
+let prataBifogade = [];
+let prataLaserFiler = false; /* filer håller på att komprimeras/läsas in */
 let prataBildPreviews = {};
 /* länkar Anna klistrar in i chatten läses av via r.jina.ai (samma
    läsartjänst som Skrivbordets egen länkanalys i App.jsx) — en gratis
@@ -2036,57 +2042,100 @@ const App = {
   },
   /* ---- prata med assistenten (förstasidan) ---- */
   async prataFilVald(input){
-    const fil = input.files && input.files[0];
-    input.value = ''; /* så samma fil kan väljas igen senare */
-    if(!fil) return;
+    const filer = Array.from(input.files || []);
+    input.value = ''; /* så samma filer kan väljas igen senare */
+    if(!filer.length) return;
     if(!session){ toast('Logga in först.'); return; }
-    const filtyp = fil.type || '';
+    if(prataLaserFiler){ toast('Vänta — jag läser fortfarande in de förra filerna.'); return; }
+    /* flera filer får följa med samma meddelande — med tak så det samlade
+       anropet håller sig under serverns 4 MB-gräns. Gränserna hänger ihop:
+       2 250 000 byte blir exakt 3 000 000 tecken base64, så en ensam PDF
+       som klarar per fil-gränsen klarar alltid också totalgränsen. */
+    const MAX_ANTAL = 5;
+    const MAX_TOTALT = 3000000; /* tecken base64 sammanlagt */
+    const MAX_PDF_BYTE = 2250000;
+    /* inläsningen kan ta flera sekunder (kamerabilder komprimeras i flera
+       steg) — flagga + ⏳-rad så inget skickas halvfärdigt, och de nya
+       filerna läggs till i ETT svep först när alla är klara */
+    prataLaserFiler = true;
+    renderIdag();
+    const nya = [];
+    let forManga = 0, ejLasta = 0, fickEjPlats = 0, forStora = 0;
     try{
-      if(filtyp.startsWith('image/')){
-        const dataUrl = await komprimeraBild(fil);
-        if(!dataUrl){ toast('Kunde inte läsa bilden.'); return; }
-        prataBifogad = {
-          block: { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: dataUrl.split(',')[1] } },
-          previewUrl: dataUrl,
-          namn: fil.name || 'bild'
-        };
-      } else if(filtyp === 'application/pdf'){
-        if(fil.size > 2500000){ toast('PDF:en är för stor att bifoga.'); return; }
-        const dataUrl = await new Promise((res) => {
-          const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => res(null); fr.readAsDataURL(fil);
-        });
-        if(!dataUrl){ toast('Kunde inte läsa filen.'); return; }
-        prataBifogad = {
-          block: { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: dataUrl.split(',')[1] } },
-          previewUrl: null,
-          namn: fil.name || 'dokument'
-        };
-      } else {
-        toast('Den filtypen stöds inte — bifoga en bild eller PDF.');
-        return;
+      for(const fil of filer){
+        if(prataBifogade.length + nya.length >= MAX_ANTAL){ forManga++; continue; }
+        const filtyp = fil.type || '';
+        try{
+          let ny = null;
+          if(filtyp.startsWith('image/')){
+            const dataUrl = await komprimeraBild(fil);
+            if(!dataUrl){ ejLasta++; continue; }
+            ny = {
+              block: { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: dataUrl.split(',')[1] } },
+              previewUrl: dataUrl,
+              namn: fil.name || 'bild'
+            };
+          } else if(filtyp === 'application/pdf'){
+            if(fil.size > MAX_PDF_BYTE){ forStora++; continue; }
+            const dataUrl = await new Promise((res) => {
+              const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => res(null); fr.readAsDataURL(fil);
+            });
+            if(!dataUrl){ ejLasta++; continue; }
+            ny = {
+              block: { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: dataUrl.split(',')[1] } },
+              previewUrl: null,
+              namn: fil.name || 'dokument'
+            };
+          } else {
+            ejLasta++;
+            continue;
+          }
+          const hittills = prataBifogade.concat(nya).reduce((s, b) => s + b.block.source.data.length, 0);
+          if(hittills + ny.block.source.data.length > MAX_TOTALT){ fickEjPlats++; continue; }
+          nya.push(ny);
+        }catch(e){
+          ejLasta++;
+        }
       }
+      prataBifogade = prataBifogade.concat(nya);
+    }finally{
+      prataLaserFiler = false;
       renderIdag();
-    }catch(e){
-      toast('Kunde inte läsa filen just nu.');
+    }
+    /* ETT samlat besked om allt som inte kom med, så inget drunknar */
+    const missar = [];
+    if(forManga) missar.push(forManga + ' rymdes inte (högst ' + MAX_ANTAL + ' filer per meddelande)');
+    if(forStora) missar.push(forStora + (forStora > 1 ? ' PDF:er var för stora' : ' PDF var för stor'));
+    if(fickEjPlats) missar.push(fickEjPlats + ' fick inte plats (för stort tillsammans)');
+    if(ejLasta) missar.push(ejLasta + ' kunde inte läsas');
+    if(missar.length){
+      toast((nya.length ? 'Vissa filer kom inte med: ' : 'Filerna kom inte med: ') + missar.join(', ') + '.');
     }
   },
-  prataTaBortBifogad(){
-    prataBifogad = null;
+  prataTaBortBifogad(i){
+    prataBifogade.splice(i, 1);
     renderIdag();
   },
   async prataSkicka(viaRost){
     const el = document.getElementById('prataInput');
     const text = ((el && el.value) || '').trim();
-    const bifogad = prataBifogad;
+    const bifogade = prataBifogade;
     const lankar = Array.from(new Set(text.match(LANK_REGEX) || [])).slice(0, 2);
-    if((!text && !bifogad) || prataSkickar) return;
+    if(prataLaserFiler){ toast('Ett ögonblick — filerna läses fortfarande in.'); return; }
+    if(prataSkickar){ if(text || bifogade.length) toast('Vänta lite — jag skriver fortfarande på förra svaret.'); return; }
+    if(!text && !bifogade.length) return;
     if(el) el.value = '';
-    const loggText = text || '📷 (bifogade en bild eller fil)'; /* text saknas bara om bifogad finns — se guarden ovan */
+    /* text saknas bara om bilagor finns — se guarden ovan */
+    const loggText = text || (bifogade.length > 1
+      ? '📷 (bifogade ' + bifogade.length + ' filer)'
+      : '📷 (bifogade en bild eller fil)');
     const meddelandeId = loggaMeddelande('prata', 'jag', loggText);
-    if(bifogad && bifogad.previewUrl) prataBildPreviews[meddelandeId] = bifogad.previewUrl;
-    prataBifogad = null;
+    const previews = bifogade.map(b => b.previewUrl).filter(Boolean);
+    if(previews.length) prataBildPreviews[meddelandeId] = previews;
+    prataBifogade = [];
     prataSkickar = true;
     renderIdag();
+    let lyckades = false; /* gick svaret fram? annars läggs bilagorna tillbaka */
     try{
       /* länkar Anna klistrat in läses av direkt — det sparar en runda.
          Vill modellen läsa MER (undersidor, källor) använder den verktyget
@@ -2104,14 +2153,16 @@ const App = {
         content: m.text
       }));
       const delar = [];
-      if(bifogad) delar.push(bifogad.block);
+      for(const b of bifogade) delar.push(b.block);
       for(const l of lankResultat){
         delar.push({ type: 'text', text: l.innehall
           ? 'Innehåll från länken ' + l.url + ':\n"""' + l.innehall + '"""'
           : 'Länken ' + l.url + ' gick inte att öppna eller läsa av — säg det till Anna i stället för att gissa vad den innehåller.' });
       }
-      let huvudText = text || (bifogad ? 'Vad ser du i den här bilden/filen?' : 'Titta på länken och berätta vad den handlar om.');
-      const sistaContent = (bifogad || delar.length)
+      let huvudText = text || (bifogade.length > 1 ? 'Vad ser du i de här bilderna/filerna?'
+        : bifogade.length ? 'Vad ser du i den här bilden/filen?'
+        : 'Titta på länken och berätta vad den handlar om.');
+      const sistaContent = delar.length
         ? delar.concat([{ type: 'text', text: huvudText }])
         : loggText;
 
@@ -2284,10 +2335,14 @@ const App = {
         pushProfil();
       }
       loggaMeddelande('prata', 'ass', resultat.svar + extra);
+      lyckades = true;
       if(viaRost) talUpp(resultat.svar);
     }catch(e){
       loggaMeddelande('prata', 'ass', 'Jag kom inte fram till kontoret just nu — försök igen om en stund.');
     }finally{
+      /* gick det inte fram: lägg tillbaka bilagorna så "försök igen"
+         faktiskt skickar med dem (utan att röra ev. nya som hunnit väljas) */
+      if(!lyckades && bifogade.length) prataBifogade = bifogade.concat(prataBifogade);
       prataSkickar = false;
       prataStatus = '';
       renderIdag();
