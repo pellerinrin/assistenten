@@ -37,6 +37,18 @@ Båda chattarna — "Prata med mig" på förstasidan och Ekonomi-flikens — ski
 
 Förstasidans chatt kan även användas med rösten: mikrofonknappen använder webbläsarens taligenkänning (`SpeechRecognition`, sv-SE) och svar på röstfrågor läses upp med `speechSynthesis`. Chatten känner till hela dagsläget (brief, bevakningar, barnens vecka, jobbresor, karriärmål, ekonomi, mejl) och kan lägga till och bocka av bevakningar via `action`-fältet i AI-svaret.
 
+## Trädgården i 3D
+
+`tradgard.html` är en fristående 3D-värld av trädgården, byggd efter 16 foton. Den nås från **Mer**-fliken eller direkt på `/tradgard.html` och kräver ingen inloggning.
+
+- **66 namngivna saker** — blommor, bär, grönsaker, träd, byggnader och möbler. Varje sak har svenskt namn, latinskt namn och en kort beskrivning. Namnlapparna kan tryckas på, och **Växtlistan** har sökfält och flyger kameran till det man väljer.
+- **Gå runt** med W A S D (eller styrspaken på telefon) och dra för att titta. `F` ger flygläge, `L` släcker namnlapparna.
+- **Rundtur** går igenom trädgårdens 18 platser av sig själv, från gräsmattan till växthuset och tillbaka.
+- **Morgon / Dag / Kväll** flyttar solen och ändrar himlen.
+- Arter som var svåra att artbestämma på foto är märkta *”osäker art”* i informationsrutan.
+
+Tekniskt: ett enda HTML-dokument plus `vendor/three.min.js` (three.js r160, MIT, medföljer så sidan fungerar offline — ingen CDN). Allt statiskt slås ihop till två stora mesh:ar, så hela trädgården ritas i praktiken i två anrop och går mjukt även på telefon.
+
 ## Köra lokalt
 
 ```powershell

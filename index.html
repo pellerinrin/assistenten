@@ -176,6 +176,7 @@ input:focus,select:focus,textarea:focus{outline:none; border-color:var(--bronze)
 }
 .btn.ghost{background:transparent; color:var(--green)}
 .btn.small{padding:6px 12px; font-size:13.5px}
+a.btn{display:inline-block; text-decoration:none}
 .btn.danger{border-color:var(--red); background:transparent; color:var(--red)}
 .btn:active{transform:translateY(1px)}
 .knapprad{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px}
@@ -1752,6 +1753,11 @@ function renderMer(){
     (antalSamtal ? antalSamtal + (antalSamtal === 1 ? ' rad' : ' rader') + ' i det laddade minnet.' : 'Inga samtal sparade ännu.') +
     (state.utkorg.length ? ' (' + state.utkorg.length + ' väntar på att skickas upp.)' : '') + '</p>' +
     '<div class="knapprad"><button class="btn small danger" onclick="App.raderaSamtal()">Radera hela historiken</button></div></div>';
+
+  /* trädgården i 3D */
+  html += '<div class="card"><h2>🌿 Trädgården i 3D</h2>' +
+    '<p class="small muted">En liten värld att gå runt i — huset, växthuset, odlingslanden och gungan, med namn på alla blommor, bär och träd.</p>' +
+    '<div class="knapprad"><a class="btn small" href="tradgard.html">Öppna trädgården</a></div></div>';
 
   /* installera */
   html += '<div class="card"><h2>📱 Lägg till på hemskärmen</h2>' +

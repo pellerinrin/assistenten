@@ -1,7 +1,7 @@
 /* Service worker för Assistenten — gör appen installerbar och offline-bar. */
 'use strict';
 
-const CACHE_VERSION = 'assistenten-v2';
+const CACHE_VERSION = 'assistenten-v3';
 const APP_SHELL = [
   './',
   './index.html',
@@ -10,6 +10,12 @@ const APP_SHELL = [
   './icon-512.png',
   './icon-maskable-512.png',
   './apple-touch-icon.png'
+];
+/* trädgårdsvärlden — trevlig att ha offline, men får inte stoppa installationen
+   om något av det tyngre inte hinner med */
+const EXTRA_LOKALT = [
+  './tradgard.html',
+  './vendor/three.min.js'
 ];
 /* inloggningsbiblioteket, bästa-möjliga-försök (får inte stoppa installationen
    om CDN:et krånglar just då) */
@@ -21,7 +27,9 @@ self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_VERSION)
       .then(cache => cache.addAll(APP_SHELL)
-        .then(() => Promise.all(EXTRA_SHELL.map(u => cache.add(u).catch(() => {})))))
+        .then(() => Promise.all(
+          EXTRA_SHELL.concat(EXTRA_LOKALT).map(u => cache.add(u).catch(() => {}))
+        )))
       .then(() => self.skipWaiting())
   );
 });
