@@ -1694,11 +1694,13 @@ function uppdateraEtiketter(){
   }
   framme.sort((a,b)=>a.d-b.d);
   const tagna = [];
+  const smal = innerWidth < 620;
+  const tak = smal ? 6 : 13;
   let visade = 0;
   for(const f of framme){
     let krock = false;
-    if(visade >= 13) krock = true;
-    for(const t of tagna){ if(Math.abs(t.x-f.x)<150 && Math.abs(t.y-f.y)<52){ krock=true; break; } }
+    if(visade >= tak) krock = true;
+    for(const t of tagna){ if(Math.abs(t.x-f.x)<150 && Math.abs(t.y-f.y)<(smal?76:52)){ krock=true; break; } }
     if(krock){ f.n.el.style.display='none'; continue; }
     tagna.push(f); visade++;
     const e = f.n.el;
