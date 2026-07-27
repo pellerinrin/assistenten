@@ -41,9 +41,9 @@ Förstasidans chatt kan även användas med rösten: mikrofonknappen använder w
 
 `tradgard.html` är en fristående 3D-värld av trädgården, byggd efter 16 foton. Den nås från **Mer**-fliken eller direkt på `/tradgard.html` och kräver ingen inloggning.
 
-- **66 namngivna saker** — blommor, bär, grönsaker, träd, byggnader och möbler. Varje sak har svenskt namn, latinskt namn och en kort beskrivning. Namnlapparna kan tryckas på, och **Växtlistan** har sökfält och flyger kameran till det man väljer.
+- **74 namngivna saker** — blommor, bär, grönsaker, träd, byggnader och möbler. Varje sak har svenskt namn, latinskt namn och en kort beskrivning. Namnlapparna kan tryckas på, och **Växtlistan** har sökfält och flyger kameran till det man väljer.
 - **Gå runt** med W A S D (eller styrspaken på telefon) och dra för att titta. `F` ger flygläge, `L` släcker namnlapparna.
-- **Rundtur** går igenom trädgårdens 18 platser av sig själv, från gräsmattan till växthuset och tillbaka.
+- **Rundtur** går igenom trädgårdens 20 platser av sig själv, från gräsmattan ut genom grinden och tillbaka in i växthuset.
 - **Morgon / Dag / Kväll** flyttar solen och ändrar himlen.
 - Arter som var svåra att artbestämma på foto är märkta *”osäker art”* i informationsrutan.
 
