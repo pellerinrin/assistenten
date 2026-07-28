@@ -432,7 +432,7 @@ function markenBygg(){
     pos.setY(i, h);
     /* torrare gräs i kanterna och kring odlingslandet */
     let t = 0.5 + Math.sin(x*0.7+z*0.5)*0.25 + rnd()*0.3;
-    const torrt = Math.max(0, (Math.abs(z-6)<5 && x>-1 ? 0.35 : 0), (Math.abs(x)>15?0.3:0), (z<-8?0.2:0));
+    const torrt = Math.max(0, (Math.abs(z-17.5)<2.8 && x>-9 && x<0 ? 0.35 : 0), (Math.abs(x)>15?0.25:0), (z<-8?0.2:0));
     c.setHex(F.gras).lerp(new THREE.Color(F.grasLjus), t*0.6).lerp(new THREE.Color(F.grasTorr), torrt);
     col.push(c.r, c.g, c.b);
   }
@@ -445,11 +445,12 @@ function markenBygg(){
 
   /* grusytor: en tunn skiva strax över gräset */
   function grus(x,z,w,d,farg,rot){ box(fast, x, 0.035, z, w, 0.07, d, farg, 0, rot||0, 0); }
-  grus( -5.5, 15.8, 7.6, 5.4, F.grusRosa, 0.04);         // grusplatsen med parasollet
-  grus(-13.2, 14.6, 7.0, 3.6, F.grusRosa);               // remsan vid utduschen
-  grus( -8.0, 13.0, 11.4, 1.6, F.grusRosa);              // gången längs husets baksida
-  grus( 13.5,  7.0, 8.2, 4.4, F.grusGra, 0);             // växthusets golv och gång
-  grus(  9.0,  7.0, 1.8, 3.0, F.grusGra, 0);             // framför växthusdörren
+  grus(  1.1,  9.0, 5.2, 7.8, F.grusRosa);               // grusplatsen vid östra gaveln
+  grus( -5.8, 13.35, 8.8, 1.8, F.grusRosa);              // grusremsan längs södra väggen
+  grus(-14.95, 10.4, 1.7, 3.8, F.grusGra);               // vid bänken på västra gaveln
+  grus( 14.0, 23.6, 8.2, 4.4, F.grusGra, 0);             // växthusets golv
+  grus(  8.9, 23.6, 1.9, 3.2, F.grusGra, 0);             // framför växthusdörren
+  grus( 18.7, 23.8, 1.7, 4.4, F.grusGra, 0.02);          // gången med lavendel vid östgaveln
 }
 
 /* ==========================================================================
@@ -755,8 +756,8 @@ function husetBygg(){
   /* norra gaveln */
   fonster(hx-1.6, yF, hz-langd/2-0.03, 1.0, 1.05, 'z', false);
 
-  /* frontespis över entrén */
-  const fz = hz-0.9;
+  /* frontespis på gatufasadens västra halva */
+  const fz = hz+2.1;
   box(fast, vast+0.3, takFot+0.62, fz, 1.4, 1.24, 1.9, F.husVagg);
   for(const s of [-1,1]) box(fast, vast+0.3, takFot+0.62, fz+s*0.95, 1.4, 1.24, 0.12, F.husFoder);
   for(let i=0;i<6;i++){                        // liten gavelspets
@@ -795,16 +796,23 @@ function husetBygg(){
   /* postlåda */
   box(fast, vast-0.06, sockel+1.05, pz+1.9, 0.09, 0.24, 0.5, 0xb5ae9a);
 
-  /* spaljé på fasaden söder om frontespisen */
-  for(let i=0;i<7;i++) box(fast, vast-0.05, sockel+1.7, hz+0.9+i*0.11, 0.04, 2.1, 0.05, F.husFoder);
-  for(let i=0;i<5;i++) box(fast, vast-0.05, sockel+0.75+i*0.45, hz+1.23, 0.04, 0.05, 0.75, F.husFoder);
+  /* hög gles spaljé på norrfasadens västra del */
+  for(let i=0;i<7;i++) box(fast, vast-0.05, sockel+1.7, hz+3.5+i*0.13, 0.04, 2.3, 0.05, F.husFoder);
+  for(let i=0;i<5;i++) box(fast, vast-0.05, sockel+0.75+i*0.5, hz+3.9, 0.04, 0.05, 0.9, F.husFoder);
+  /* klätterväxt som klär nordösthörnet */
+  for(let i=0;i<22;i++)
+    plan(lov, vast+rr(-0.15,0.1), rr(0.4,2.9), hz-langd/2+rr(-0.15,0.6), 0.2, 0.18, 0x4e7a33, 0, rr(0,PI), rr(0,PI));
+  /* vit pall vid sockeln öster om farstukvisten */
+  box(fast, vast-0.35, 0.14, hz-2.6, 0.3, 0.28, 0.3, 0xeeeae0);
 
   /* stuprör, hängränna och regntunna */
   for(const s of [-1,1]){
     rullo(fast, hx+s*(djup/2-0.08), sockel+vagg/2, hz-langd/2+0.35, 0.055, vagg, 0x9aa0a2);
     box(fast, hx+s*(djup/2+utsprang*0.6), takFot+0.06, hz, 0.12, 0.1, langd+0.4, 0x9aa0a2);
   }
-  rullo(fast, ost-0.08, 0.3, hz-langd/2+0.9, 0.3, 0.6, F.svart);
+  rullo(fast, ost+0.42, 0.3, hz+langd/2-0.55, 0.3, 0.6, F.svart);          // regntunna SV
+  rullo(fast, ost-0.08, sockel+vagg/2, hz+langd/2-0.35, 0.055, vagg, 0x9aa0a2);
+  rullo(fast, vast+0.08, sockel+vagg/2, hz+langd/2-0.35, 0.055, vagg, 0x9aa0a2);
 
   /* slangvinda och vattenkanna vid trappan */
   rullo(fast, px-1.5, 0.45, pz-1.9, 0.24, 0.16, 0x3f6b8a, 0, 0, PI/2);
@@ -812,8 +820,8 @@ function husetBygg(){
   rullo(fast, px-1.2, 0.16, pz-2.4, 0.13, 0.3, F.zink);
 
   N('Huset','Trähus från tjugotalet','hus','🏡', hx, takFot+takH+1.0, hz,
-    'Ett långt, lågt trähus i gulvitt med grågröna foder och valmat tegeltak. Två skorstenar, en frontespis över entrén och granitsockel hela vägen runt. Gatan ligger i väster, trädgården på baksidan i öster.',
-    'Tomtens västra sida');
+    'Ett långt, lågt trähus i gulvitt med grågröna foder och valmat tegeltak. Två skorstenar, frontespis åt både gatan och trädgården, burspråk mot söder och granitsockel hela vägen runt.',
+    'Tomtens nordvästra del');
   N('Farstukvisten','Entré med plåttak','hus','🚪', px-1.0, sockel+2.0, pz,
     'Den lilla farstukvisten med sitt eget roströda plåttak, globlampan över dörren och den mörkröda pardörren med frostade rutor. Trappstegen är av sten.',
     'Husets framsida');
@@ -821,36 +829,66 @@ function husetBygg(){
     'Pelargonerna som står i fönstren året runt och lyser rosa ut mot gatan.',
     'I fönstren mot gatan');
 
-  /* verandan mot trädgården, med räcke och trappsteg ner mot grusplatsen */
-  const vx = ost+1.3, vz = hz-3.6;
-  box(fast, vx, 0.3, vz, 2.6, 0.6, 3.0, 0x8d887e);
+  /* Verandan sitter vid husets NORDÖSTRA hörn — östra gavelns norra ände —
+     och sticker ut österut, med trappstegen ner åt söder mot grusplatsen.
+     (Lokala axlar: -z = världens öster, -x = världens norr.) */
+  const vx = vast+1.1, vz = hz-langd/2-1.15;
+  box(fast, vx, 0.3, vz, 2.6, 0.6, 3.0, 0x8d887e);                       // sockel
+  box(fast, vx, 0.62, vz, 2.5, 0.08, 2.9, F.traGra);                     // golv
   for(const sx of [-1,1]) for(const sz of [-1,1])
-    box(fast, vx+sx*1.2, 1.75, vz+sz*1.4, 0.14, 2.3, 0.14, F.husFoder);
-  for(let i=0;i<11;i++) box(fast, vx+1.28, 1.15, vz-1.4+i*0.28, 0.05, 0.95, 0.05, F.husFoder);
-  for(let i=0;i<9;i++)  box(fast, vx-1.1+i*0.28, 1.15, vz+1.42, 0.05, 0.95, 0.05, F.husFoder);
-  box(fast, vx+1.28, 1.66, vz, 0.09, 0.07, 3.0, F.husFoder);
-  box(fast, vx, 1.66, vz+1.42, 2.6, 0.07, 0.09, F.husFoder);
-  box(fast, vx, 3.0, vz, 3.1, 0.16, 3.5, F.husTak);
-  for(let i=0;i<3;i++) box(fast, vx+1.5+i*0.32, 0.5-i*0.16, vz, 0.32, 0.12, 1.5, 0x9a958c);
-  N('Verandan','Farstukvist mot trädgården','hus','🪟', vx+0.4, 3.5, vz,
-    'Verandan på trädgårdssidan med sitt räcke och de tre stentrappstegen ner till grusplatsen. Det är här man kommer ut med kaffebrickan.',
-    'Husets trädgårdssida');
+    box(fast, vx+sx*1.2, 1.75, vz+sz*1.4, 0.14, 2.3, 0.14, F.husFoder);  // hörnstolpar
+  /* räcke mot öster (lokal -z) och norr (lokal -x) */
+  for(let i=0;i<9;i++)  box(fast, vx-1.1+i*0.28, 1.05, vz-1.42, 0.05, 0.85, 0.05, F.husFoder);
+  for(let i=0;i<11;i++) box(fast, vx-1.22, 1.05, vz-1.4+i*0.28, 0.05, 0.85, 0.05, F.husFoder);
+  box(fast, vx, 1.5, vz-1.42, 2.6, 0.07, 0.09, F.husFoder);
+  box(fast, vx-1.22, 1.5, vz, 0.09, 0.07, 3.0, F.husFoder);
+  /* turkos handduk över östräcket, grill med överdrag uppe på däcket */
+  box(fast, vx+0.3, 1.32, vz-1.44, 0.5, 0.42, 0.14, 0x3fa8a0);
+  klot(fast, vx-0.5, 0.95, vz+0.6, 0.3, 0.3, 0.3, 0x35353a);
+  /* rostrött plåttak buret av stolparna */
+  box(fast, vx, 3.0, vz, 3.0, 0.14, 3.4, 0xa8563d, 0, 0, 0.06);
+  /* trappsteg ner åt söder (lokal +x), med små solcellslampor */
+  for(let i=0;i<3;i++){
+    box(fast, vx+1.35+i*0.3, 0.44-i*0.16, vz, 0.32, 0.14, 1.3, 0x9a958c);
+    klot(fast, vx+1.35+i*0.3, 0.6-i*0.16, vz-0.7, 0.05, 0.07, 0.05, 0xf2ecd8);
+  }
+  N('Verandan','Veranda vid nordösthörnet','hus','🪟', vx, 3.5, vz,
+    'Verandan vid husets nordöstra hörn, med räcke, rostrött plåttak och trappstegen med små solcellslampor ner mot grusplatsen. Härifrån ser man både gatan och hela trädgården.',
+    'Husets nordöstra hörn');
 
-  /* litet trädäck i husets bortre ände */
-  const ax = vast-1.3, az = hz-langd/2+1.5;
-  box(fast, ax, sockel-0.05, az, 2.6, 0.14, 3.0, F.traGra);
-  for(const p of [[-1.25,-1.45],[-1.25,1.45],[1.2,-1.45],[1.2,1.45]])
-    box(fast, ax+p[0], sockel/2, az+p[1], 0.12, sockel, 0.12, F.traMork);
-  for(let i=0;i<11;i++) box(fast, ax-1.25, sockel+0.45, az-1.4+i*0.28, 0.05, 0.9, 0.05, F.traGra);
-  for(let i=0;i<9;i++)  box(fast, ax-1.2+i*0.28, sockel+0.45, az-1.45, 0.05, 0.9, 0.05, F.traGra);
-  box(fast, ax-1.25, sockel+0.92, az, 0.09, 0.06, 3.0, F.traGra);
-  box(fast, ax, sockel+0.92, az-1.45, 2.6, 0.06, 0.09, F.traGra);
-  /* klängande grönska upp för altanens stolpar */
-  for(let i=0;i<30;i++)
-    plan(lov, ax-1.3+rr(-0.1,0.1), rr(0.3,2.4), az+rr(-1.5,1.5), 0.22, 0.2, 0x4e7a33, 0, PI/2, rr(0,PI));
-  N('Altanen','Trädäck med räcke','hus','🪵', ax-0.6, 2.0, az,
-    'Det lilla trädäcket med det spretiga räcket i husets bortre ände, halvt övervuxet av klängväxten som tar sig upp för stolparna.',
-    'Husets bortre hörn');
+  /* glasad pardörr i östra gavelns södra ände, ut mot grusplatsen */
+  box(fast, ost-1.15, sockel+1.1, hz-langd/2-0.04, 1.35, 2.05, 0.08, F.husFoder);
+  for(const sd of [-1,1]){
+    box(fast, ost-1.15+sd*0.31, sockel+1.15, hz-langd/2-0.07, 0.5, 1.85, 0.04, 0x8a6a3a);
+    box(fast, ost-1.15+sd*0.31, sockel+1.45, hz-langd/2-0.1, 0.36, 1.15, 0.03, 0x4d6166);
+  }
+  box(fast, ost-1.15, sockel+0.02, hz-langd/2-0.3, 1.5, 0.12, 0.5, 0x9a958c);   // tröskelsten
+
+  /* burspråk på södra långsidan, med blågrå plåtavtäckning */
+  const bz = hz+0.3;
+  box(fast, ost+0.28, sockel+1.25, bz, 0.62, 1.7, 2.2, F.husVagg);
+  box(fast, ost+0.32, sockel+2.16, bz, 0.72, 0.09, 2.36, 0x7a8a92);
+  for(const sd of [-1,0,1])
+    box(fast, ost+0.6, sockel+1.35, bz+sd*0.7, 0.05, 1.1, 0.55, 0x4d6166);
+  for(const sd of [-1.05,-0.35,0.35,1.05])
+    box(fast, ost+0.6, sockel+1.35, bz+sd, 0.06, 1.2, 0.07, F.husFoder);
+  box(fast, ost+0.6, sockel+0.72, bz, 0.07, 0.09, 2.25, F.husFoder);
+
+  /* glasad frontespis mot söder — trädgårdens spegelbild av gatufrontespisen */
+  const fs = hz+2.4;
+  box(fast, ost-0.3, takFot+0.62, fs, 1.4, 1.24, 1.9, F.husVagg);
+  for(const sd of [-1,1]) box(fast, ost-0.3, takFot+0.62, fs+sd*0.95, 1.4, 1.24, 0.12, F.husFoder);
+  for(let i=0;i<6;i++){
+    const t=i/6;
+    box(fast, ost-0.3, takFot+1.24+t*0.62, fs, 1.4, 0.13, 1.9*(1-t), F.husVagg);
+  }
+  for(const sd of [-1,1])
+    box(fast, ost-0.3, takFot+1.58, fs+sd*0.5, 1.7, 0.09, 1.25, F.husTak, sd*0.66, 0, 0);
+  /* det stora glasade partiet med snedställd överkant */
+  box(fast, ost+0.42, takFot+0.7, fs, 0.06, 1.05, 1.3, 0x39474a);
+  box(fast, ost+0.44, takFot+1.45, fs, 0.05, 0.5, 0.7, 0x39474a);
+  box(fast, ost+0.46, takFot+0.7, fs, 0.04, 1.1, 0.08, F.husFoder);
+  box(fast, ost+0.46, takFot+0.72, fs, 0.04, 0.07, 1.32, F.husFoder);
 }
 
 /* framsidan mot gatan: grusplan, smidesgrind, granitstolpar och gult staket */
@@ -921,8 +959,9 @@ function framsidanBygg(){
 
   /* ung björk mitt på grusplanen */
   trad(-18.4, 3.0, 6.5, 1.7, {typ:'bjork', stamR:0.1});
-  N('Unga björken','Betula pendula','trad','🌿', -18.4, 6.8, 3.0,
-    'Den späda björken som planterats mitt på grusplanen framför huset — fortfarande smal nog att man kan ta om stammen med en hand.',
+  trad(-19.7, 4.7, 5.4, 1.4, {typ:'bjork', stamR:0.08});
+  N('Unga björkarna','Betula pendula','trad','🌿', -18.4, 6.8, 3.0,
+    'De två späda björkarna framför fasaden, väster om grusgången — fortfarande smala nog att man kan ta om stammarna med en hand.',
     'Framsidan mot gatan');
 
   /* rabatt och gräsremsa norrut, med rosor och höga perenner */
@@ -935,32 +974,42 @@ function framsidanBygg(){
   for(let i=0;i<26;i++) axblomma(-21.8+rr(0,5.4), 5.6+rr(0,4.8), rr(0.5,1.0), i%3? 0x9a5fa8 : 0xc4a0d0, 0x5f7a3a, 0.045);
   for(let i=0;i<40;i++) tuvor(-21.8+rr(0,5.6), 5.4+rr(0,5.2), 0.2, 2, F.grasLjus, 0.26);
 
-  /* parkerad bil på grusplanen */
-  const bx=-20.6, bz=2.6;
-  box(fast, bx, 0.62, bz, 2.0, 0.62, 4.4, 0x3a4a44);
-  box(fast, bx, 1.12, bz-0.2, 1.7, 0.62, 2.2, 0x2e3c38);
-  box(fast, bx, 1.14, bz-0.15, 1.74, 0.44, 1.9, 0x64757a);
+  /* parkerad bil i förgårdens östra del */
+  const bx=-20.4, bz=-9.0;
+  box(fast, bx, 0.62, bz, 4.4, 0.62, 2.0, 0x3a4a44);
+  box(fast, bx-0.2, 1.12, bz, 2.2, 0.62, 1.7, 0x2e3c38);
+  box(fast, bx-0.15, 1.14, bz, 1.9, 0.44, 1.74, 0x64757a);
   for(const s of [-1,1]) for(const t of [-1,1])
-    rullo(fast, bx+s*0.92, 0.31, bz+t*1.5, 0.31, 0.22, 0x1f1f1f, 0, 0, PI/2);
+    rullo(fast, bx+s*1.5, 0.31, bz+t*0.92, 0.31, 0.22, 0x1f1f1f, PI/2, 0, 0);
   N('Bilen','Parkerad bil','hus','🚗', bx, 1.9, bz,
-    'Bilen står på grusplanen innanför grinden, som den alltid gör.',
+    'Den mörka kombin står i förgårdens östra del, nära husknuten, som den alltid gör.',
     'Framsidan mot gatan');
+  /* rosor och höga perenner i östra förgårdsrabatten */
+  for(let i=0;i<3;i++){
+    const rx=bx+rr(-1.6,1.2), rz=bz-2.2+rr(-0.5,0.5);
+    buske(rx, rz, 0.45, 0.85, 0x3f6636);
+    for(let k=0;k<4;k++) klotL(lov, rx+rr(-0.3,0.3), rr(0.5,0.9), rz+rr(-0.25,0.25), 0.07, k%2? F.rosa : F.rod);
+  }
+  for(let i=0;i<8;i++) axblomma(bx+rr(-1.8,1.4), bz-2.4+rr(-0.4,0.4), rr(0.6,1.0), 0x9a5fa8, 0x5f7a3a, 0.045);
+  /* syrenbuskaget innanför staketet väster om grinden */
+  for(let i=0;i<5;i++) klotL(lov, -21.6+rr(-0.8,0.8), rr(0.9,2.2), 3.4+rr(-0.7,0.7), rr(0.6,1.0), i%2? 0x4a6b3a : 0x557a42);
+  /* det stora lövträdet vid nordvästra hörnet */
+  trad(-25.5, 14.0, 8.5, 3.0, {typ:'lov', lov:0x486b34});
 }
 
-/* grusplatsen med parasoll, bord och stolar */
+/* grusplatsen med parasollet — utmed husets östra gavel, verandan i norr */
 function grusplatsenBygg(){
-  const x=-7.6, z=7.6;
+  const x=1.1, z=9.3;                    // parasollbordets mitt, ~2,5 m ut från gaveln
 
-  /* runt bord med randig duk */
+  /* runt bord med randig duk och grått parasoll */
   rullo(fast, x, 0.36, z, 0.05, 0.72, F.svart);
   rullo(fast, x, 0.03, z, 0.28, 0.06, F.svart);
   rullo(fast, x, 0.73, z, 0.62, 0.05, F.dukRand);
-  for(let i=0;i<9;i++){                                    /* duk med veck */
+  for(let i=0;i<9;i++){
     const a=i/9*TAU;
     box(fast, x+Math.cos(a)*0.52, 0.6, z+Math.sin(a)*0.52, 0.22, 0.26, 0.05,
         i%2 ? F.dukRand : 0x2f7a5a, 0, -a, 0);
   }
-  /* parasoll */
   rullo(fast, x, 1.35, z, 0.035, 2.6, 0x3a3a3a);
   kon(fast, x, 2.62, z, 1.55, 0.42, 0x40403c);
   for(let i=0;i<8;i++){
@@ -968,12 +1017,12 @@ function grusplatsenBygg(){
     stag(fast, x, 2.5, z, x+Math.cos(a)*1.5, 2.34, z+Math.sin(a)*1.5, 0.018, 0x35352f);
   }
   N('Parasollet','Grå parasoll','hus','⛱️', x, 3.1, z,
-    'Den grå parasollen mitt på grusplatsen, över bordet med den röd- och grönrandiga duken.',
-    'Grusplatsen söder om huset');
+    'Den grå parasollen över bordet med den röd- och grönrandiga duken, mitt på grusplatsen utmed östra gaveln.',
+    'Grusplatsen öster om huset');
 
-  /* fyra stolar med dynor */
-  for(let i=0;i<4;i++){
-    const a = i/4*TAU + 0.5, sx = x+Math.cos(a)*1.5, sz = z+Math.sin(a)*1.5;
+  /* sex flätade stolar med vita dynor */
+  for(let i=0;i<6;i++){
+    const a = i/6*TAU + 0.4, sx = x+Math.cos(a)*1.55, sz = z+Math.sin(a)*1.55;
     box(fast, sx, 0.42, sz, 0.55, 0.06, 0.55, 0xa89b86, 0, -a, 0);
     box(fast, sx, 0.48, sz, 0.5, 0.09, 0.5, 0xf0ece0, 0, -a, 0);
     box(fast, sx-Math.cos(a)*0.24, 0.68, sz-Math.sin(a)*0.24, 0.52, 0.5, 0.06, 0xa89b86, 0.12, -a, 0);
@@ -982,64 +1031,60 @@ function grusplatsenBygg(){
       stag(fast, px, 0, pz-0.2, px, 0.42, pz+0.2, 0.018, 0xa89b86);
     }
   }
-  /* orange blomsterpall och röd bänk med krukor */
-  const bx=x+1.0, bz=z-2.5;
-  box(fast, bx, 0.55, bz, 0.5, 0.05, 0.4, F.orangeD);
-  for(const s of [-1,1]) stag(fast, bx+s*0.2, 0, bz, bx, 0.55, bz, 0.02, F.orangeD);
-  box(fast, bx+1.5, 0.42, bz, 1.9, 0.07, 0.4, 0xc0492e);
-  for(const s of [-1,1]) box(fast, bx+1.5+s*0.85, 0.21, bz, 0.06, 0.42, 0.34, 0xc0492e);
 
-  /* krukor med zinnia och dahlia på bänken */
+  /* röd bänk med krukor och orange blomsterpall, mot gavelväggens södra halva */
+  box(fast, -1.05, 0.42, 10.7, 0.4, 0.07, 1.9, 0xc0492e);
+  for(const s of [-1,1]) box(fast, -1.05, 0.21, 10.7+s*0.85, 0.34, 0.42, 0.06, 0xc0492e);
+  box(fast, -1.1, 0.55, 12.0, 0.4, 0.05, 0.5, F.orangeD);
+  for(const s of [-1,1]) stag(fast, -1.1, 0, 12.0+s*0.2, -1.1, 0.55, 12.0, 0.02, F.orangeD);
   for(let i=0;i<4;i++){
-    const px = bx+0.85+i*0.44;
-    rullo(fast, px, 0.52, bz, 0.13, 0.2, i%2 ? 0xb5714f : 0x9aa093);
+    const pz = 10.0+i*0.46;
+    rullo(fast, -1.05, 0.52, pz, 0.13, 0.2, i%2 ? 0xb5714f : 0x9aa093);
     for(let k=0;k<4;k++){
       const h = rr(0.28,0.5);
-      stag(fast, px, 0.6, bz, px+rr(-0.1,0.1), 0.6+h, bz+rr(-0.1,0.1), 0.01, F.lovLjus);
-      tusenskona(px+rr(-0.08,0.08), 0.6+h, bz+rr(-0.08,0.08), 0.075,
+      stag(fast, -1.05, 0.6, pz, -1.05+rr(-0.1,0.1), 0.6+h, pz+rr(-0.1,0.1), 0.01, F.lovLjus);
+      tusenskona(-1.05+rr(-0.08,0.08), 0.6+h, pz+rr(-0.08,0.08), 0.075,
                  i%2 ? F.rosa : F.rosaM, F.gul, 9);
     }
   }
-  N('Zinnia','Zinnia elegans','blomma','🌸', bx+1.3, 1.25, bz,
-    'De rosa krukblommorna på den röda bänken vid husväggen — starkt rosa strålblommor som blommar hela sensommaren.',
-    'Grusplatsen, mot husväggen', true);
+  N('Zinnia','Zinnia elegans','blomma','🌸', -1.05, 1.25, 10.7,
+    'De rosa krukblommorna på den röda bänken mot gavelväggen — starkt rosa strålblommor som blommar hela sensommaren.',
+    'Grusplatsen, mot östra gaveln', true);
 
-  /* grill */
-  rullo(fast, x+3.6, 0.45, z-0.4, 0.32, 0.16, F.svart);
-  rullo(fast, x+3.6, 0.28, z-0.4, 0.07, 0.42, F.svart);
-  kon(fast, x+3.6, 0.62, z-0.4, 0.33, 0.22, 0x1f1f1f);
-  N('Grillen','Klotgrill','hus','🔥', x+3.6, 1.0, z-0.4,
-    'Den svarta klotgrillen vid kanten av grusplatsen, alldeles intill tujorna.',
-    'Grusplatsen');
+  /* klotgrillen vid verandatrappans fot */
+  rullo(fast, 0.9, 0.45, 7.1, 0.32, 0.16, F.svart);
+  rullo(fast, 0.9, 0.28, 7.1, 0.07, 0.42, F.svart);
+  kon(fast, 0.9, 0.62, 7.1, 0.33, 0.22, 0x1f1f1f);
+  N('Grillen','Klotgrill','hus','🔥', 0.9, 1.0, 7.1,
+    'Den svarta klotgrillen vid foten av verandatrappan.',
+    'Grusplatsen, vid verandan');
 
-  /* tujor / enbuskar */
-  for(let i=0;i<3;i++){
-    const tx = x+4.3+i*0.85, tz = z-1.6+rr(-0.3,0.3);
-    kon(lov, tx, 0.75, tz, 0.42, 1.5, 0x3d5c3a);
-    kon(lov, tx, 1.35, tz, 0.28, 0.9, 0x466a3f);
+  /* klotformade tujor/rosmarin vid sockeln närmast verandan */
+  for(const p of [[-0.9,7.2],[-0.55,6.5],[-1.05,7.9]]){
+    kon(lov, p[0], 0.55, p[1], 0.34, 1.1, 0x3d5c3a);
+    kon(lov, p[0], 1.0, p[1], 0.22, 0.6, 0x466a3f);
   }
-  N('Tuja','Thuja occidentalis','trad','🌲', x+5.1, 1.9, z-1.6,
-    'De klippta, koniska tujorna som skärmar av grusplatsen mot uppfarten.',
-    'Grusplatsens östra kant', true);
+  N('Tuja','Thuja occidentalis','trad','🌲', -0.75, 1.5, 7.2,
+    'De klotklippta barrbuskarna vid sockeln nedanför verandan.',
+    'Grusplatsen, vid husväggen', true);
 
-  /* lavendel och funkia i kanten */
-  for(let i=0;i<16;i++) axblomma(x+3.2+rr(-0.5,3.4), z+0.9+rr(-0.5,0.6), rr(0.3,0.46), F.lavendel, 0x8a9a76, 0.04);
-  N('Lavendel','Lavandula angustifolia','blomma','💜', x+4.6, 0.8, z+1.0,
-    'Silvergrå tuvor med blåvioletta ax längs grusplatsens kant. Doftar starkt när man går förbi och surrar av humlor.',
+  /* lavendel, hosta och vit balkonglåda i grusplatsens östra kant */
+  for(let i=0;i<14;i++) axblomma(3.5+rr(-0.35,0.5), 7.6+rr(0,4.2), rr(0.3,0.46), F.lavendel, 0x8a9a76, 0.04);
+  N('Lavendel','Lavandula angustifolia','blomma','💜', 3.6, 0.8, 9.5,
+    'Silvergrå tuvor med blåvioletta ax längs grusplatsens östra kant. Doftar starkt när man går förbi och surrar av humlor.',
     'Grusplatsen, mot gräsmattan');
-
-  for(let i=0;i<5;i++) bladtuva(x+5.9+rr(-0.5,0.5), z+1.6+i*0.4, 0.35, 12, 0x6f8f57, 0.5);
-  N('Funkia','Hosta','gront','🍃', x+5.9, 0.5, z+2.4,
-    'Breda, räfflade blad i skuggan bakom lavendeln — funkian som kommer tillbaka varje vår utan att man gör något.',
+  for(let i=0;i<4;i++) bladtuva(3.7+rr(-0.3,0.3), 11.6+i*0.35, 0.35, 12, 0x6f8f57, 0.5);
+  box(fast, 3.6, 0.18, 12.6, 0.7, 0.3, 0.3, 0xf0ece2);
+  N('Funkia','Hosta','gront','🍃', 3.7, 0.5, 11.9,
+    'Breda, räfflade blad vid grusplatsens sydöstra hörn, bredvid den vita balkonglådan.',
     'Grusplatsens hörn');
 }
 
-/* utdusch, zinkbadkar och rosor på norrsidan */
+/* grusremsan längs södra långsidan: dusch vid SO-hörnet, zinkkar, växtställ, rosrad.
+   Lokal ram: +x = ut från husväggen (söder), +z = västerut längs väggen. */
 function utduschBygg(){
-  const x=-8.6, z=-5.6;
-
   /* trall */
-  box(fast, x, 0.08, z, 1.5, 0.16, 1.4, F.traGra);
+  box(fast, 0.3, 0.08, 0, 1.4, 0.16, 1.5, F.traGra);
   /* vassmattor som skärm, med synliga vasstrån */
   function vassmatta(mx,my,mz, bredd, hojd, langsX){
     box(fast, mx, my, mz, langsX?bredd:0.07, hojd, langsX?0.07:bredd, 0xbcae92);
@@ -1050,42 +1095,38 @@ function utduschBygg(){
           langsX?0.03:0.02, hojd*rr(0.93,1.0), langsX?0.02:0.03, i%3? 0xa2946f : 0xc6b898);
     }
   }
-  vassmatta(x-0.7, 0.85, z,      1.5, 1.4, false);
-  vassmatta(x,     0.85, z-0.75, 1.5, 1.4, true);
-  vassmatta(x+1.05,0.85, z-0.2,  1.1, 1.4, false);
-  /* stolpar och överliggare */
-  for(const p of [[-0.72,-0.75],[0.72,-0.75],[0.72,0.72]])
-    box(fast, x+p[0], 0.95, z+p[1], 0.1, 1.9, 0.1, F.tra);
-  box(fast, x, 1.92, z-0.75, 1.6, 0.14, 0.16, F.traMork);
-  /* kopparduschen */
-  rullo(fast, x-0.55, 1.3, z-0.6, 0.025, 2.4, F.koppar);
-  stag(fast, x-0.55, 2.45, z-0.6, x-0.1, 2.5, z-0.6, 0.025, F.koppar);
-  rullo(fast, x-0.05, 2.35, z-0.6, 0.11, 0.06, F.koppar);
-  N('Utduschen','Dusch under bar himmel','hus','🚿', x, 2.7, z,
-    'Kopparduschen på husets baksida, avskärmad med vassmattor och med trall under fötterna.',
-    'Norr om huset, mot grusremsan');
+  vassmatta(0.35, 0.85, -0.85, 1.4, 1.4, true);    // mot öster/grusplatsen
+  vassmatta(1.1,  0.85, -0.1,  1.5, 1.4, false);   // mot trädgården i söder
+  for(const p of [[1.05,-0.8],[1.05,0.7],[-0.4,-0.8]])
+    box(fast, p[0], 0.95, p[1], 0.1, 1.9, 0.1, F.tra);
+  box(fast, 0.3, 1.92, -0.05, 0.16, 0.14, 1.75, F.traMork);
+  /* kopparduschen, bultad i husväggen */
+  rullo(fast, -0.5, 1.3, 0.25, 0.025, 2.4, F.koppar);
+  stag(fast, -0.5, 2.45, 0.25, -0.05, 2.5, 0.25, 0.025, F.koppar);
+  rullo(fast, 0.0, 2.35, 0.25, 0.11, 0.06, F.koppar);
+  N('Utduschen','Dusch under bar himmel','hus','🚿', 0.3, 2.7, 0,
+    'Kopparduschen vid husets sydosthörn, avskärmad med vassmattor och med trall under fötterna. Runt hörnet ligger grusplatsen.',
+    'Sydosthörnet, på grusremsan');
 
-  /* zinkbadkar och zinktråg */
-  const bx=x-0.2, bz=z-2.3;
-  box(fast, bx, 0.3, bz, 1.55, 0.6, 0.7, F.zink, 0, 0.15, 0);
-  box(fast, bx, 0.58, bz, 1.4, 0.1, 0.55, 0x8d9295, 0, 0.15, 0);
-  klot(fast, bx+0.75, 0.42, bz, 0.28, 0.42, 0.36, F.zink);
-  box(fast, bx-0.15, 0.22, bz-2.3, 0.62, 0.44, 2.6, F.zink, 0, 0.06, 0);
-  box(fast, bx-0.15, 0.42, bz-2.3, 0.48, 0.06, 2.45, 0x8d9295, 0, 0.06, 0);
-  N('Zinkbadkaret','Gammalt plåtbadkar','hus','🛁', bx, 0.95, bz,
-    'Det gamla zinkbadkaret och det långa zinktråget som står på grusremsan bakom huset.',
-    'Bakom huset, mot norr');
+  /* zinkbadkar, zinktråg och det rostiga växtstället västerut längs väggen */
+  box(fast, 0.45, 0.3, 2.7, 0.7, 0.6, 1.55, F.zink, 0, 0.1, 0);
+  box(fast, 0.45, 0.58, 2.7, 0.55, 0.1, 1.4, 0x8d9295, 0, 0.1, 0);
+  klot(fast, 0.45, 0.42, 3.45, 0.36, 0.42, 0.28, F.zink);
+  box(fast, 0.35, 0.22, 4.55, 0.62, 0.44, 2.4, F.zink, 0, 0.04, 0);
+  box(fast, 0.35, 0.42, 4.55, 0.48, 0.06, 2.25, 0x8d9295, 0, 0.04, 0);
+  N('Zinkbadkaret','Gammalt plåtbadkar','hus','🛁', 0.45, 0.95, 2.7,
+    'Det gamla zinkbadkaret och det långa zinktråget på grusremsan längs husets södra vägg, ett par meter väster om duschen.',
+    'Grusremsan längs södra väggen');
 
-  /* rostigt växtställ */
   for(const s of [[-0.2,-0.2],[0.2,-0.2],[-0.2,0.2],[0.2,0.2]])
-    box(fast, bx+s[0]-0.1, 0.5, bz-4.0+s[1], 0.03, 1.0, 0.03, F.rost);
-  box(fast, bx-0.1, 1.02, bz-4.0, 0.5, 0.05, 0.55, F.barkLjus);
-  box(fast, bx-0.1, 0.5, bz-4.0, 0.42, 0.03, 0.46, F.rost);
-  skiva(fast, bx-0.1, 0.54, bz-4.0, 0.2, 0x8fa07e);
+    box(fast, 0.25+s[0], 0.5, 6.1+s[1], 0.03, 1.0, 0.03, F.rost);
+  box(fast, 0.25, 1.02, 6.1, 0.5, 0.05, 0.55, F.barkLjus);
+  box(fast, 0.25, 0.5, 6.1, 0.42, 0.03, 0.46, F.rost);
+  skiva(fast, 0.25, 0.54, 6.1, 0.2, 0x8fa07e);
 
-  /* rosbuskar längs gruset */
+  /* rosraden mellan grusremsan och gräsmattan, med dill och krasse */
   for(let i=0;i<4;i++){
-    const rx = x+0.7+i*0.85, rz = z-1.5+rr(-0.25,0.25);
+    const rx = 1.8+rr(-0.15,0.15), rz = 0.9+i*1.2;
     buske(rx, rz, 0.5, 0.9, 0x3f6636, F.lovLjus);
     for(let k=0;k<6;k++){
       const a=rr(0,TAU), d=rr(0.1,0.42);
@@ -1093,10 +1134,16 @@ function utduschBygg(){
       klotL(lov, px,py,pz, 0.075, k%3===0 ? F.vitBlom : F.rosa);
       klotL(lov, px,py+0.03,pz, 0.045, k%3===0 ? 0xf7e9e0 : F.rosaM);
     }
+    for(let k=0;k<3;k++){
+      stag(fast, rx+rr(-0.5,0.5), 0, rz+rr(-0.4,0.4), rx+rr(-0.5,0.5), rr(0.5,0.8), rz+rr(-0.4,0.4), 0.01, 0x7fa04a);
+    }
   }
-  N('Rosor','Rosa','blomma','🌹', x+2.7, 1.35, z-1.5,
-    'Ljusrosa buskrosor längs grusgången bakom huset — de som lyser upp hela raden mot tältet.',
-    'Norr om huset, längs grusgången');
+  N('Rosor','Rosa','blomma','🌹', 1.8, 1.35, 2.4,
+    'Ljusrosa buskrosor i raden mellan grusremsan och gräsmattan, med dill och krasse som självsått sig emellan.',
+    'Längs grusremsan');
+
+  /* kransveronika närmast väggen */
+  for(let i=0;i<8;i++) axblomma(-0.32, 3.1+rr(0,3.4), rr(0.5,0.8), 0x9a5fa8, 0x5f7a3a, 0.045);
 }
 
 /* blått kupoltält */
@@ -1106,22 +1153,28 @@ function taltBygg(){
     const t=i/6, sk = Math.sin(t*PI)*0.5+0.5;
     klot(fast, x-1.5+t*3.0, 0.9*sk+0.1, z, 0.9, 0.95*sk+0.12, 1.25*sk+0.2, i%2?F.taltBla:F.taltBlaM);
   }
-  box(fast, x+0.2, 0.75, z+1.05, 0.5, 1.3, 0.06, 0x1b2740, 0, 0.1, 0);
+  box(fast, x-1.55, 0.75, z, 0.06, 1.3, 0.5, 0x1b2740, 0, 0, 0.1);
   for(const s of [-1,1]) stag(fast, x+s*1.5, 1.0, z, x+s*2.4, 0.02, z+0.6, 0.008, 0xcfcfcf);
   N('Tältet','Kupoltält','hus','⛺', x, 2.0, z,
-    'Det mörkblå kupoltältet som står uppslaget på gräsmattan hela sommaren, en bit ut från grusremsan vid huset.',
-    'Gräsmattan vid huset');
+    'Det mörkblå kupoltältet som står uppslaget på gräsmattan hela sommaren, med ingången vänd mot huset i väster.',
+    'Gräsmattan öster om huset');
 
-  /* silverpilen står alldeles intill tältet */
-  trad(x+2.4, z-2.6, 4.0, 2.4, {typ:'pil', lov:0x9aad96, bark:0x7a6f5f, stamR:0.16});
-  N('Silverpil','Salix alba ’Sericea’','trad','🥈', x+2.4, 4.4, z-2.6,
-    'Den silverskimrande pilen intill tältet — bladen blänker ljusgrå när det blåser.',
-    'Vid tältet', true);
+  /* silverpilen strax nordost om tältet, med grenarna in över poolen */
+  trad(x+3.1, z-1.1, 4.0, 2.4, {typ:'pil', lov:0x9aad96, bark:0x7a6f5f, stamR:0.16});
+  N('Silverpil','Salix alba ’Sericea’','trad','🥈', x+3.1, 4.4, z-1.1,
+    'Den silverskimrande pilen mellan tältet och poolen — bladen blänker ljusgrå när det blåser och grenarna hänger in över vattnet.',
+    'Mellan tältet och poolen', true);
 
-  /* den vita lerkrukan på gräset mellan tältet och poolen */
-  klot(fast, x+3.4, 0.22, z+0.6, 0.3, 0.24, 0.3, 0xefeade);
-  rullo(fast, x+3.4, 0.42, z+0.6, 0.1, 0.14, 0xefeade);
-  skiva(fast, x+3.4, 0.005, z+0.6, 0.55, 0x8f8b80);
+  /* de vita urnorna med flätat fat och dahlior vid pilens fot */
+  skiva(fast, x+2.1, 0.005, z+0.2, 0.6, 0x8f8b80);
+  klot(fast, x+2.1, 0.22, z+0.1, 0.3, 0.24, 0.3, 0xefeade);
+  rullo(fast, x+2.1, 0.42, z+0.1, 0.1, 0.14, 0xefeade);
+  klot(fast, x+2.55, 0.16, z+0.45, 0.2, 0.17, 0.2, 0xefeade);
+  skiva(fast, x+1.75, 0.02, z+0.55, 0.2, 0xc9b48a);
+  for(let i=0;i<5;i++) blomstjalk(x+1.6+rr(0,0.9), z+0.6+rr(0,0.5), rr(0.3,0.5), i%2? F.rosaM : F.magenta, F.gul, 0.075);
+  N('Lerkrukorna','Vita urnor med dahlior','hus','🏺', x+2.1, 0.9, z+0.2,
+    'De vita lerkrukorna och det flätade fatet vid silverpilens fot, med rosa dahlior lysande intill.',
+    'Mellan tältet och poolen');
 }
 
 /* fikabordet med bänkar och orange duk */
@@ -1149,12 +1202,15 @@ function hangkorgBygg(){
   const x=1.6, z=-4.4;
   trad(x, z, 5.4, 2.6, {typ:'lov', lov:0x40632f, frukt:10, grenar:5});
   N('Äppelträdet','Malus domestica','trad','🍎', x, 5.9, z,
-    'Det stora äppelträdet mitt i trädgården. Det är i den här grenen hängkorgen sitter, och det är härifrån äpplena kommer i september.',
-    'Gräsmattans mitt');
+    'Det stora, gamla äppelträdet i gräsmattans sydöstra del, med knotiga grenar och lav på stammen. Hängkorgen sitter på västsidan, mot gräsmattan.',
+    'Gräsmattans sydöstra del');
+  /* liten fe-mobil som hänger i trädet */
+  stag(fast, x-0.9, 2.6, z+0.5, x-0.9, 2.05, z+0.5, 0.006, 0xd8d4c8);
+  klot(fast, x-0.9, 1.98, z+0.5, 0.05, 0.09, 0.05, 0xe8d8e8);
 
-  /* grov gren ut mot söder att hänga i */
-  stag(fast, x, 3.0, z, x+0.4, 2.75, z+1.9, 0.09, F.bark);
-  const hx=x+0.42, hz=z+1.85;
+  /* grov gren ut mot väster, mot gräsmattan, att hänga i */
+  stag(fast, x, 3.0, z, x-1.7, 2.7, z-0.4, 0.09, F.bark);
+  const hx=x-1.85, hz=z-0.42;
   stag(fast, hx, 2.7, hz, hx, 1.55, hz, 0.012, 0x7a7a70);
   /* själva korgen */
   const korg = new THREE.Group();
@@ -1170,8 +1226,8 @@ function hangkorgBygg(){
   iVarlden(korg);
   gungor.push({obj:korg, fas:rr(0,TAU), amp:0.12, axel:'z'});
   N('Hängkorgen','Rosa hängande fåtölj','hus','🎀', hx, 2.4, hz,
-    'Den rosa hängkorgen i äppelträdet — den bästa platsen i hela trädgården för att gunga och läsa.',
-    'Under äppelträdet');
+    'Den rosa hängkorgen som hänger i en kraftig spiralfjäder på äppelträdets västsida — den bästa platsen i hela trädgården för att gunga och läsa.',
+    'Äppelträdets västsida');
 
   /* repstege bredvid */
   const sx=x+1.4, sz=z+1.2;
@@ -1182,64 +1238,75 @@ function hangkorgBygg(){
     'Under äppelträdet');
 }
 
-/* stora trädet med repgungan i sydost */
+/* det lutande trädet med knutrepet, vid staketet mot gatan i nordost */
 function repgungaBygg(){
-  const x=12.4, z=7.6;
-  trad(x, z, 6.4, 3.2, {typ:'lov', lov:0x3c5c2c, grenar:5, klot:11});
-  /* den grova vågräta grenen mot väster */
-  stag(fast, x, 2.9, z, x-3.4, 2.55, z-0.4, 0.16, F.bark);
-  const gx=x-2.4, gz=z-0.3;
-  const gunga = new THREE.Group();
-  const gb = new Bygge();
-  for(const s of [-1,1]) stag(gb, s*0.22, 0, 0, s*0.16, -2.0, 0, 0.016, 0xd8cdb2);
-  box(gb, 0, -2.02, 0, 0.62, 0.07, 0.22, F.traMork);
-  const gm = gb.mesh(new THREE.MeshLambertMaterial({vertexColors:true}));
-  gunga.add(gm); gunga.position.set(gx, 2.62, gz);
-  iVarlden(gunga);
-  gungor.push({obj:gunga, fas:1.2, amp:0.22, axel:'x'});
-  N('Repgungan','Gunga i rep','hus','🪢', gx, 1.4, gz,
-    'Repgungan med träsitsen i det stora trädet vid staketet — den man kan ta riktig fart i.',
-    'Sydöstra hörnet, vid spjälstaketet');
+  const x=14.6, z=4.6;
+  /* den grova, starkt lutande stammen */
+  stag(fast, x-0.4, 0.05, z-0.1, x+2.3, 3.3, z+0.7, 0.27, F.bark);
+  stag(fast, x+1.3, 2.1, z+0.4, x+3.4, 4.4, z+0.2, 0.17, F.bark);
+  stag(fast, x+1.9, 2.9, z+0.55, x+1.4, 4.6, z+1.6, 0.12, F.bark);
+  for(let i=0;i<8;i++){
+    const a=rr(0,TAU), d=rr(0,1.8);
+    klotL(lov, x+2.4+Math.cos(a)*d, rr(3.6,5.6), z+0.6+Math.sin(a)*d, rr(0.9,1.4), i%3? 0x44682f : 0x54803a);
+  }
+  /* knutrepet, fäst i stammen via en träkloss */
+  box(fast, x+0.95, 1.95, z+0.32, 0.22, 0.3, 0.1, F.traMork, 0, 0, 0.65);
+  stag(fast, x+1.0, 1.9, z+0.35, x+1.05, 0.5, z+0.42, 0.028, 0xd8cdb2);
+  for(let i=0;i<3;i++) klot(fast, x+1.02+i*0.012, 1.55-i*0.38, z+0.38+i*0.015, 0.05, 0.045, 0.05, 0xc9bfa4);
+  box(fast, x+1.05, 0.42, z+0.42, 0.05, 0.09, 0.05, F.svart);
+  N('Knutrepet','Klätterrep i trädet','hus','🪢', x+1.0, 1.4, z+0.4,
+    'Det grova repet med knutar och svarttejpad ände som hänger i det lutande trädet vid staketet mot gatan — perfekt att klänga i.',
+    'Vid gatustaketet i nordost');
 
-  /* ormbunkar under trädet */
-  for(let i=0;i<9;i++){
-    const fx=x-2.6+rr(-1.4,1.4), fz=z+1.2+rr(-0.8,0.8);
+  /* ormbunkar i skuggan under stammen */
+  for(let i=0;i<7;i++){
+    const fx=x-0.8+rr(0,2.2), fz=z+1.0+rr(0,1.0);
     for(let k=0;k<7;k++){
       const a=k/7*TAU;
       plan(lov, fx+Math.cos(a)*0.22, 0.28, fz+Math.sin(a)*0.22, 0.16, 0.62, 0x39632c, -0.75, -a, 0);
     }
   }
-  N('Ormbunkar','Dryopteris filix-mas','gront','🌿', x-2.6, 0.8, z+1.4,
-    'Täta ormbunkar i skuggan under det stora trädet, längs staketet.',
-    'Sydöstra hörnet', true);
+  N('Ormbunkar','Dryopteris filix-mas','gront','🌿', x+0.4, 0.8, z+1.4,
+    'Täta ormbunkar i skuggan under det lutande trädet.',
+    'Vid gatustaketet', true);
 }
 
-/* uppblåsbar pool + bod */
+/* poolen med långsidan mot tältet, boden bortom med dörrgaveln mot väster */
 function poolOchBodBygg(){
-  const x=5.6, z=-8.6;
-  for(let i=0;i<2;i++){
-    const r=0.28-i*0.06;
-    box(fast, x, 0.2+i*0.34, z, 3.4-i*0.15, 0.36, 2.2-i*0.15, i? F.poolVit : F.poolBla);
-  }
-  box(fast, x, 0.16, z, 3.1, 0.3, 1.95, F.vatten);
-  box(fast, x-1.2, 0.12, z+1.5, 0.36, 0.24, 0.28, 0xf0f0ee);   // vit pall
+  const x=10.0, z=15.3;
+  for(let i=0;i<2;i++)
+    box(fast, x, 0.2+i*0.34, z, 2.2-i*0.15, 0.36, 3.4-i*0.15, i? F.poolVit : F.poolBla);
+  box(fast, x, 0.16, z, 1.95, 0.3, 3.1, F.vatten);
+  box(fast, x-0.3, 0.34, z+0.5, 0.5, 0.06, 0.3, 0x2f6b8a);              // håven i vattnet
+  box(fast, x-1.4, 0.12, z+0.7, 0.36, 0.24, 0.28, 0xf0f0ee);            // vita plastpallen
+  /* trädgårdsslangen som ringlar över gräset från huset */
+  stag(fast, -1.0, 0.03, 13.6, 2.2, 0.03, 14.4, 0.024, 0x2e6b4f);
+  stag(fast, 2.2, 0.03, 14.4, 5.6, 0.03, 14.2, 0.024, 0x2e6b4f);
+  stag(fast, 5.6, 0.03, 14.2, 8.7, 0.03, 15.1, 0.024, 0x2e6b4f);
   N('Badpoolen','Uppblåsbar pool','hus','🏊', x, 1.1, z,
-    'Den blåa uppblåsbara poolen på gräset, med den vita plastpallen att kliva upp på.',
-    'Norra delen av gräsmattan');
+    'Den blåvita uppblåsbara poolen med långsidan mot tältet och den vita plastpallen som insteg. Silverpilens grenar hänger in över vattnet.',
+    'Öster om tältet');
 
-  /* grå bod med rundat tak */
-  const bx=10.6, bz=-11.6;
-  box(fast, bx, 1.05, bz, 3.2, 2.1, 2.6, F.bodGra);
+  /* boden — grå, med välvt tak och gammal spegeldörr i gaveln mot väster */
+  const bx=16.3, bz=15.2;
+  box(fast, bx, 1.05, bz, 2.8, 2.1, 2.6, F.bodGra);
   for(let i=0;i<5;i++){
     const t=i/4;
-    box(fast, bx, 2.2+Math.sin(t*PI)*0.5, bz-1.0+t*2.0, 3.4, 0.5, 0.62, 0xa9a494, (t-0.5)*1.1, 0, 0);
+    box(fast, bx, 2.2+Math.sin(t*PI)*0.5, bz-1.0+t*2.0, 3.0, 0.5, 0.62, 0xa9a494, (t-0.5)*1.1, 0, 0);
   }
-  box(fast, bx-0.1, 0.95, bz+1.32, 0.85, 1.9, 0.08, 0xc6c1b0);       // dörr
-  box(fast, bx+1.0, 1.45, bz+1.33, 0.5, 0.55, 0.06, 0x3d4a44);       // fönster
-  box(fast, bx-0.1, 0.05, bz+1.7, 1.0, 0.1, 0.6, F.traGra);
+  box(fast, bx-1.42, 0.95, bz+0.4, 0.08, 1.9, 0.85, 0xc6c1b0);          // spegeldörren
+  box(fast, bx-1.46, 1.3, bz+0.4, 0.03, 0.5, 0.55, 0xb5b0a0);
+  box(fast, bx-1.46, 0.6, bz+0.4, 0.03, 0.6, 0.55, 0xb5b0a0);
+  box(fast, bx-1.43, 1.45, bz-0.55, 0.06, 0.55, 0.5, 0x3d4a44);         // spröjsat fönster
+  box(fast, bx-1.46, 1.45, bz-0.55, 0.02, 0.57, 0.05, 0xc9c4b4);
+  box(fast, bx-1.46, 1.45, bz-0.55, 0.02, 0.05, 0.52, 0xc9c4b4);
+  box(fast, bx-1.6, 0.05, bz+0.4, 0.5, 0.1, 1.0, F.traGra);             // trampsten
+  /* buskaget vid bodens södra gavelhörn, mot ladan */
+  klotL(lov, bx+0.6, 0.8, bz+1.7, 0.65, F.lov);
+  klotL(lov, bx+1.3, 0.6, bz+1.5, 0.5, F.hack);
   N('Boden','Redskapsbod','hus','🛖', bx, 3.1, bz,
-    'Den gråmålade boden med det välvda taket, längst bort mot häcken bakom poolen.',
-    'Norra kanten');
+    'Den gråmålade boden med det välvda taket, den gamla spegeldörren och det spröjsade fönstret i gaveln som vetter mot poolen och tältet.',
+    'Mot östra häcken, bortom poolen');
 }
 
 /* växthuset — plasttunnel med trägavlar */
@@ -1269,17 +1336,22 @@ function vaxthusBygg(){
                  bx, sockel+Math.sin(a2)*r, z-Math.cos(a2)*r, 0.028, 0xd6d2c6);
     }
   }
-  /* gavlar av trä */
-  function gavel(gx, vand){
+  /* gavlar av trä — östgaveln har hål för det stora spröjsade fönstret */
+  function gavel(gx, hal){
     for(let i=-9;i<=9;i++){
       const px = i*0.21;
       const hh = Math.sqrt(Math.max(0, r*r - px*px));
       if(hh<0.05) continue;
-      box(fast, gx, sockel+hh/2, z+px, 0.06, hh, 0.2, 0xd9d5c6);
+      if(hal && Math.abs(px) < 0.92){
+        box(fast, gx, sockel+0.36, z+px, 0.06, 0.72, 0.2, 0xd9d5c6);
+        if(hh > 2.35) box(fast, gx, sockel+2.35+(hh-2.35)/2, z+px, 0.06, hh-2.35, 0.2, 0xd9d5c6);
+      } else {
+        box(fast, gx, sockel+hh/2, z+px, 0.06, hh, 0.2, 0xd9d5c6);
+      }
     }
     box(fast, gx, sockel*0.5, z, 0.14, sockel, r*2, F.betong);
   }
-  gavel(x1); gavel(x2);
+  gavel(x1); gavel(x2, true);
 
   /* dörren sitter mitt för gången, fönstret och skylten vid sidan */
   box(fast, x1-0.05, 1.32, z, 0.07, 1.9, 0.9, 0xd2cec0);
@@ -1291,13 +1363,19 @@ function vaxthusBygg(){
   box(fast, x1-0.07, 2.28, z+1.05, 0.04, 0.34, 0.34, F.rost);       // rostskylten
   for(let i=0;i<3;i++) box(fast, x1-0.35-i*0.3, 0.13-i*0.045, z, 0.3, 0.09, 1.0, F.traGra);
   N('Växthuset','Plasttunnel med trägavlar','hus','🏛️', xm, 3.0, z,
-    'Den stora plasttunneln med trägavlar, spröjsat fönster och en rostig skylt vid dörren: ”Att se trädgården spira är som honung för själen”. Här inne är det alltid några grader varmare.',
-    'Trädgårdens östra del');
+    'Den stora plasttunneln med trägavlar i trädgårdens sydöstra del. Vid dörren sitter rostskylten ”Att se trädgården spira är honung för själen”, och genom det stora gavelfönstret i öster ser man rakt på grannens röda lada.',
+    'Trädgårdens sydöstra del');
 
-  /* östra gaveln har ett spröjsat fönster mot röda ladan */
-  box(fast, x2+0.06, 1.5, z, 0.06, 1.5, 1.7, 0x9fb3b0);
-  for(let i=0;i<3;i++) box(fast, x2+0.09, 0.95+i*0.55, z, 0.02, 0.05, 1.72, 0xc9c4b4);
-  for(let i=0;i<3;i++) box(fast, x2+0.09, 1.5, z-0.6+i*0.6, 0.02, 1.52, 0.05, 0xc9c4b4);
+  /* östra gavelns stora spröjsade fönster, med utsikt rakt mot röda ladan */
+  for(let i=0;i<4;i++){
+    box(fast, x2-0.04, sockel+0.85+i*0.46, z, 0.05, 0.06, 1.84, 0xc9c4b4);
+    box(fast, x2+0.04, sockel+0.85+i*0.46, z, 0.05, 0.06, 1.84, 0xc9c4b4);
+  }
+  for(let i=0;i<5;i++){
+    box(fast, x2-0.04, sockel+1.53, z-0.9+i*0.45, 0.05, 1.64, 0.06, 0xc9c4b4);
+    box(fast, x2+0.04, sockel+1.53, z-0.9+i*0.45, 0.05, 1.64, 0.06, 0xc9c4b4);
+  }
+  box(fast, x2-0.02, sockel+2.4, z, 0.08, 0.12, 1.9, 0xc9c4b4);
 
   /* odlingsbäddar av betong inne i tunneln */
   box(fast, xm, 0.28, z-1.25, langd-0.5, 0.56, 0.85, F.betong);
@@ -1305,9 +1383,9 @@ function vaxthusBygg(){
   box(fast, xm, 0.28, z+1.25, langd-0.5, 0.56, 0.85, F.betong);
   box(fast, xm, 0.5,  z+1.25, langd-0.7, 0.14, 0.7,  F.jord);
 
-  /* tomater i norra bädden */
+  /* tomater i södra bädden — till höger när man kliver in genom västdörren */
   for(let i=0;i<9;i++){
-    const tx = x1+0.9+i*0.72, tz = z-1.25+rr(-0.18,0.18);
+    const tx = x1+0.9+i*0.72, tz = z+1.25+rr(-0.18,0.18);
     stag(fast, tx, 0.56, tz, tx, 0.56+rr(1.1,1.5), tz, 0.016, 0x4e6b32);
     for(let k=0;k<9;k++){
       const hh = 0.6+rr(0,1.2);
@@ -1317,15 +1395,19 @@ function vaxthusBygg(){
       klotL(fast, tx+rr(-0.16,0.16), rr(0.75,1.5), tz+rr(-0.16,0.16), rr(0.035,0.055),
             k%3? 0x6f9a3a : 0xc4402c);
   }
-  N('Tomat','Solanum lycopersicum','gront','🍅', x1+3.4, 1.9, z-1.25,
-    'Raden med tomatplantor uppbundna i norra betongbädden. De gröna klasarna hänger tunga redan i juli.',
+  N('Tomat','Solanum lycopersicum','gront','🍅', x1+3.4, 1.9, z+1.25,
+    'Raden med tomatplantor uppbundna i södra betongbädden — till höger när man kliver in. De gröna klasarna hänger tunga redan i juli, med basilika i samma bädd.',
     'Inne i växthuset');
-
-  /* gurka och pumpa i södra bädden — de breder ut sig över kanten */
   for(let i=0;i<7;i++){
-    const gx = x1+1.1+i*0.85, gz = z+1.25;
+    const bx2 = x1+1.4+rr(0,3.4);
+    for(let k=0;k<4;k++) plan(lov, bx2+rr(-0.1,0.1), rr(0.6,0.78), z+1.25+rr(-0.2,0.2), 0.09, 0.08, 0x5f9a3d, -0.4, rr(0,TAU), 0);
+  }
+
+  /* gurka och pumpa i norra bädden — de breder ut sig över kanten */
+  for(let i=0;i<7;i++){
+    const gx = x1+1.1+i*0.85, gz = z-1.25;
     for(let k=0;k<8;k++){
-      const px = gx+rr(-0.45,0.45), pz = gz+rr(-0.55,0.9), py = 0.62-Math.max(0,(pz-gz-0.35))*0.6;
+      const px = gx+rr(-0.45,0.45), pz = gz+rr(-0.9,0.55), py = 0.62-Math.max(0,(gz-pz-0.35))*0.6;
       plan(lov, px, Math.max(0.1,py), pz, rr(0.26,0.42), rr(0.24,0.38), 0x4a7a33, -PI/2+rr(-0.5,0.5), rr(0,TAU), 0);
     }
     for(let k=0;k<2;k++)
@@ -1333,10 +1415,10 @@ function vaxthusBygg(){
     for(let k=0;k<3;k++)
       tusenskona(gx+rr(-0.35,0.35), 0.7, gz+rr(-0.4,0.4), 0.06, F.gul, F.orange, 5);
   }
-  N('Gurka','Cucumis sativus','gront','🥒', x1+3.0, 1.1, z+1.6,
-    'Gurkorna i södra bädden som kryper ut över kanten med sina taggiga blad, gula blommor och krulliga klängen.',
+  N('Gurka','Cucumis sativus','gront','🥒', x1+3.0, 1.1, z-1.6,
+    'Gurkorna i norra bädden — till vänster när man kliver in — som kryper ut över kanten med taggiga blad, gula blommor och krulliga klängen. Det var här den böjda gurkan växte.',
     'Inne i växthuset');
-  N('Pumpa','Cucurbita pepo','gront','🎃', x1+5.6, 1.0, z+1.7,
+  N('Pumpa','Cucurbita pepo','gront','🎃', x1+5.6, 1.0, z-1.7,
     'Pumporna och squashen som delar bädd med gurkorna och tar all plats de kan komma åt.',
     'Inne i växthuset', true);
 
@@ -1348,16 +1430,26 @@ function vaxthusBygg(){
     if(k%3===0) for(let b=0;b<6;b++) klotL(fast, px+rr(-0.1,0.1), py-0.14-b*0.045, pz+rr(-0.08,0.08), 0.028, 0x6f8f5a);
   }
   N('Vinranka','Vitis vinifera','bar','🍇', x2-0.6, 2.3, z-0.9,
-    'Vinrankan som klättrar upp längs växthusets östra båge, med små hårda klasar som mognar sent på hösten.',
+    'Vinrankan som klättrar runt det stora östfönstret, med små hårda klasar som mognar sent på hösten.',
     'Inne i växthuset, östra änden');
 
-  /* solros i östra änden */
-  stag(fast, x2-1.0, 0.56, z+1.1, x2-1.0, 2.5, z+1.1, 0.035, 0x4e6b32);
-  for(let k=0;k<6;k++) plan(lov, x2-1.0, rr(0.9,2.1), z+1.1+rr(-0.2,0.2), 0.3, 0.34, 0x3f6b2c, -0.3, rr(0,TAU), 0);
-  tusenskona(x2-1.0, 2.55, z+1.1, 0.34, F.gul, 0x6b4a26, 14);
-  N('Solros','Helianthus annuus','blomma','🌻', x2-1.0, 2.9, z+1.1,
-    'Solrosen som sticker upp längst in i växthuset och nästan når taket.',
-    'Inne i växthuset, östra änden');
+  /* solrosen bland tomaterna i södra bädden */
+  stag(fast, xm+0.6, 0.56, z+1.15, xm+0.6, 2.5, z+1.15, 0.035, 0x4e6b32);
+  for(let k=0;k<6;k++) plan(lov, xm+0.6, rr(0.9,2.1), z+1.15+rr(-0.2,0.2), 0.3, 0.34, 0x3f6b2c, -0.3, rr(0,TAU), 0);
+  tusenskona(xm+0.6, 2.55, z+1.15, 0.34, F.gul, 0x6b4a26, 14);
+  N('Solros','Helianthus annuus','blomma','🌻', xm+0.6, 2.9, z+1.15,
+    'Solrosen som sticker upp bland tomaterna och nästan når tunneltaket.',
+    'Inne i växthuset');
+  /* olivträd och citrus i krukor vid östfönstret, och den förgyllda ramen */
+  rullo(fast, x2-0.75, 0.2, z-0.35, 0.16, 0.4, 0xb5714f);
+  rulloL(fast, x2-0.75, 0.65, z-0.35, 0.035, 0.5, F.bark);
+  for(let k=0;k<5;k++) klotL(lov, x2-0.75+rr(-0.2,0.2), rr(0.85,1.25), z-0.35+rr(-0.2,0.2), 0.14, 0x8a9a76);
+  rullo(fast, x2-0.7, 0.16, z+0.45, 0.13, 0.32, 0xb5714f);
+  klotL(lov, x2-0.7, 0.65, z+0.45, 0.22, 0x4a7a33);
+  box(fast, x2-0.14, 1.7, z-1.15, 0.04, 0.5, 0.36, 0xb08a3a);
+  box(fast, x2-0.16, 1.7, z-1.15, 0.02, 0.4, 0.28, 0x8a9a96);
+  /* lavendel längs grusgången utanför östra gaveln */
+  for(let i=0;i<10;i++) axblomma(x2+0.7+rr(-0.2,0.3), z+rr(-1.2,1.9), rr(0.3,0.45), F.lavendel, 0x8a9a76, 0.04);
 
   /* fysalis i kruka */
   rullo(fast, x1+0.9, 0.68, z+1.3, 0.16, 0.24, 0xb5714f);
@@ -1446,8 +1538,9 @@ function luktartBygg(){
 
 /* köksland öster om gräsmattan */
 function kokslandBygg(){
-  /* pallkrage med dill och morötter */
+  /* pallkrage med dill och morötter, på stativ med vit fiberduk hängande under */
   pallkrage(10.6, 2.4, 2.4, 1.5, 0.4, F.jord);
+  box(fast, 10.6, 0.28, 3.18, 2.3, 0.5, 0.05, 0xeeeae2, 0.12, 0, 0);
   for(let i=0;i<16;i++){
     const px=10.6+rr(-1.0,1.0), pz=2.4+rr(-0.55,0.55);
     stag(fast, px, 0.4, pz, px+rr(-0.06,0.06), rr(0.85,1.15), pz, 0.012, 0x6f9a48);
@@ -1482,19 +1575,19 @@ function kokslandBygg(){
 
   /* rabarber */
   for(let i=0;i<3;i++){
-    const px=13.2+i*0.9, pz=5.4+rr(-0.3,0.3);
+    const px=11.4+i*0.85, pz=5.6+rr(-0.3,0.3);
     for(let k=0;k<7;k++){
       const a=k/7*TAU;
       stag(fast, px, 0, pz, px+Math.cos(a)*0.28, 0.45, pz+Math.sin(a)*0.28, 0.022, 0xa8442e);
       plan(lov, px+Math.cos(a)*0.42, 0.52, pz+Math.sin(a)*0.42, 0.55, 0.5, 0x40682e, -0.9, -a, 0);
     }
   }
-  N('Rabarber','Rheum rhabarbarum','gront','🥧', 14.1, 0.95, 5.4,
-    'Rabarberstånden med sina väldiga blad. Skörda fram till midsommar, sedan får de vila.',
-    'Kökslandet, mot gärdsgården');
+  N('Rabarber','Rheum rhabarbarum','gront','🥧', 12.3, 0.95, 5.6,
+    'Rabarberstånden med sina väldiga blad, längst in mot södra häcken. Skörda fram till midsommar, sedan får de vila.',
+    'Kökslandet, mot häcken');
 
-  /* odlingsbord med krukor */
-  const ox=14.6, oz=2.2;
+  /* odlingsbord med krukor, med södra häcken tätt bakom */
+  const ox=5.9, oz=3.6;
   box(fast, ox, 0.78, oz, 1.7, 0.07, 0.75, F.tra, 0, 0.2, 0);
   for(const s of [-1,1]){
     stag(fast, ox+s*0.7, 0, oz-0.3, ox+s*0.5, 0.78, oz+0.3, 0.035, F.tra);
@@ -1506,25 +1599,24 @@ function kokslandBygg(){
     for(let k=0;k<4;k++) plan(lov, px+rr(-0.08,0.08), rr(1.05,1.25), pz+rr(-0.08,0.08), 0.12, 0.14, 0x4e7a33, -0.4, rr(0,TAU), 0);
   }
   N('Odlingsbordet','Planteringsbord','hus','🪴', ox, 1.5, oz,
-    'Träbordet med alla svarta plastkrukor och sticklingar som väntar på att komma i jorden.',
-    'Kökslandet');
+    'Träbordet med alla svarta plastkrukor och sticklingar som väntar på att komma i jorden, med den höga häcken tätt i ryggen.',
+    'Söder om växthusdörren');
 
-  /* låg gärdsgård */
-  for(let i=0;i<4;i++) box(fast, 13.4, 0.35+i*0.22, 6.5, 4.4, 0.09, 0.06, F.traGra, 0, 0.03, 0);
-  for(let i=0;i<5;i++) box(fast, 11.4+i*1.1, 0.5, 6.5, 0.09, 1.0, 0.09, F.traGra);
+  /* lågt ribbstaket bakom bäddarna */
+  for(let i=0;i<4;i++) box(fast, 9.0, 0.3+i*0.2, 4.4, 3.0, 0.08, 0.06, F.traGra, 0, 0.02, 0);
+  for(let i=0;i<4;i++) box(fast, 7.8+i*0.85, 0.45, 4.4, 0.08, 0.9, 0.08, F.traGra);
 
-  /* krusbär och vinbär i kanten */
+  /* krusbär i kanten */
   barbuske(8.7, 4.6, 0.62, 1.0, 0x5c8038, 0xa8b04a, 16);
   N('Krusbär','Ribes uva-crispa','bar','🫐', 8.7, 1.4, 4.6,
-    'Krusbärsbusken vid kökslandets västra kant — taggig, men bären är värda det.',
-    'Mellan gräsmattan och kökslandet', true);
-  barbuske(8.7, 6.2, 0.6, 1.0, 0x4e7a33, F.bar, 18);
+    'Krusbärsbusken i kökslandets kant — taggig, men bären är värda det.',
+    'Kökslandet', true);
 
-  /* rosa asters/zinnior i kanten */
-  for(let i=0;i<14;i++) blomstjalk(15.2+rr(-0.6,0.8), 1.0+rr(-0.6,0.9), rr(0.4,0.6), i%2? F.rosaM : F.magenta, F.gul, 0.08);
-  N('Höstaster','Symphyotrichum','blomma','💐', 15.4, 0.8, 1.2,
-    'De rosa och magentafärgade blommorna i kanten mot häcken, som håller i sig långt in i september.',
-    'Kökslandets östra hörn', true);
+  /* rosenskära vid grusgången utanför växthusets östgavel */
+  for(let i=0;i<14;i++) blomstjalk(12.7+rr(-0.6,0.8), 1.4+rr(-0.5,0.9), rr(0.4,0.65), i%2? F.rosaM : 0xf0a8b8, F.gul, 0.08);
+  N('Rosenskära','Cosmos bipinnatus','blomma','💐', 12.9, 0.9, 1.7,
+    'De rosa, luftiga blommorna på höga stjälkar vid grusgången utanför växthusets östra gavel — de syns genom gavelfönstret inifrån.',
+    'Vid växthusets östgavel', true);
 }
 
 /* jordgubbsland och pallkragar mitt i trädgården */
@@ -1538,38 +1630,26 @@ function odlingslandBygg(){
     if(i%7===0) tusenskona(px+rr(-0.1,0.1), 0.2, pz+rr(-0.1,0.1), 0.055, F.vitBlom, F.gul, 5);
   }
   N('Jordgubbar','Fragaria × ananassa','bar','🍓', 3.4, 0.7, 3.6,
-    'Det stora jordgubbslandet mitt i trädgården — revor åt alla håll, vita blommor och röda bär under bladen.',
-    'Södra delen av gräsmattan');
+    'Det stora jordgubbslandet söder om huset — revor åt alla håll, vita blommor och röda bär under bladen.',
+    'Söder om huset');
 
-  /* två pallkragar med sallad och gräslök */
-  pallkrage(-1.4, 4.6, 2.6, 1.2, 0.36, F.jord, true);
-  for(let i=0;i<20;i++) bladtuva(-1.4+rr(-1.1,1.1), 4.6+rr(-0.45,0.45), 0.14, 5, 0x7fa04a, 0.6);
-  N('Sallad','Lactuca sativa','gront','🥗', -1.4, 0.8, 4.6,
+  /* två pallkragar i rad längs grusgången, norr om jordgubbslandet */
+  pallkrage(1.4, 1.3, 2.6, 1.2, 0.36, F.jord, true);
+  for(let i=0;i<20;i++) bladtuva(1.4+rr(-1.1,1.1), 1.3+rr(-0.45,0.45), 0.14, 5, 0x7fa04a, 0.6);
+  N('Sallad','Lactuca sativa','gront','🥗', 1.4, 0.8, 1.3,
     'Salladen i pallkragen med nätbågar över — plockas blad för blad hela sommaren.',
-    'Mellan gräsmattan och grusplatsen', true);
+    'Vid grusgången, norr om jordgubbslandet', true);
 
-  pallkrage(-4.4, 6.2, 2.2, 1.1, 0.36, F.jord);
+  pallkrage(5.4, 1.3, 2.2, 1.1, 0.36, F.jord);
   for(let i=0;i<16;i++){
-    const px=-4.4+rr(-0.9,0.9), pz=6.2+rr(-0.4,0.4);
+    const px=5.4+rr(-0.9,0.9), pz=1.3+rr(-0.4,0.4);
     for(let k=0;k<5;k++) stag(fast, px, 0.36, pz, px+rr(-0.05,0.05), rr(0.62,0.8), pz+rr(-0.05,0.05), 0.01, 0x5f8a3d);
     if(i%2===0) klotL(lov, px, rr(0.7,0.82), pz, 0.055, 0xb07fc0);
   }
-  N('Gräslök','Allium schoenoprasum','gront','🧅', -4.4, 0.95, 6.2,
+  N('Gräslök','Allium schoenoprasum','gront','🧅', 5.4, 0.95, 1.3,
     'Gräslöken i den mindre pallkragen, med lila bollar som humlorna älskar.',
-    'Söder om gräsmattan');
+    'Vid grusgången, norr om jordgubbslandet');
 
-  /* torrare jordremsa (landet från fotot med stockramen) */
-  box(fast, 6.2, 0.03, 8.8, 6.0, 0.06, 3.0, F.jordTorr, 0, 0.05, 0);
-  /* stockramen runt landet */
-  rullo(fast, 6.2, 0.12, 8.8-1.45, 0.12, 6.0, F.barkLjus, 0, 0, PI/2);
-  rullo(fast, 6.2, 0.12, 8.8+1.45, 0.12, 6.0, F.barkLjus, 0, 0, PI/2);
-  rullo(fast, 6.2-2.95, 0.12, 8.8, 0.12, 2.9, F.barkLjus, PI/2, 0, 0);
-  rullo(fast, 6.2+2.95, 0.12, 8.8, 0.12, 2.9, F.barkLjus, PI/2, 0, 0);
-  for(let i=0;i<40;i++) tuva(6.2+rr(-2.8,2.8), 8.8+rr(-1.3,1.3), i%3? F.grasTorr : 0x8a7f4a, rr(0.2,0.45));
-  for(let i=0;i<9;i++) box(fast, 6.2+rr(-2.6,2.6), 0.18, 8.8+rr(-1.2,1.2), 0.03, 0.3, 0.03, 0xe6e0cc);   // pinnetiketter
-  N('Såbädden','Nysått land','gront','🌱', 6.2, 0.7, 8.8,
-    'Det nysådda landet inramat av stockar, med små vita pinnetiketter i raderna. Här är det mest jord och förväntan än så länge.',
-    'Sydöstra delen av trädgården');
 }
 
 /* kompost- och vildhörnan i nordost */
@@ -1577,8 +1657,8 @@ function kompostBygg(){
   const x=12.6, z=-8.6;
   trad(x+1.2, z-0.4, 6.0, 2.9, {typ:'lov', lov:0x3d5c2c, frukt:8, grenar:5});
   N('Gamla äppelträdet','Malus domestica','trad','🍏', x+1.2, 6.4, z-0.4,
-    'Det knotiga gamla äppelträdet i kompostens hörn, med mossa på stammen och grenar som lutar åt alla håll.',
-    'Nordöstra hörnet');
+    'Det knotiga gamla äppelträdet i komposthörnan, med mossa på stammen och grenar som lutar åt alla håll.',
+    'Sydvästra hörnet');
 
   /* kompostbehållare */
   box(fast, x-1.0, 0.45, z, 0.85, 0.9, 0.85, 0x232323);
@@ -1586,14 +1666,14 @@ function kompostBygg(){
   rullo(fast, x-1.0, 0.95, z, 0.28, 0.06, 0x2e2e2e);
   N('Komposten','Kompostbehållare','hus','♻️', x-1.0, 1.4, z,
     'Den svarta komposten under äppelträdet, där allt gräsklipp och alla potatisskal blir till ny jord.',
-    'Nordöstra hörnet');
+    'Sydvästra hörnet');
 
   /* stenbänk och stege */
   box(fast, x-2.2, 0.42, z+0.7, 1.5, 0.09, 0.45, 0xc0bbb0, 0, 0.15, 0);
   for(const s of [-1,1]) box(fast, x-2.2+s*0.6, 0.2, z+0.7, 0.16, 0.42, 0.4, 0xb2ada2);
   N('Stenbänken','Bänk i betong','hus','🪨', x-2.2, 0.9, z+0.7,
     'Den låga betongbänken vid komposten — sval att sitta på en varm dag.',
-    'Nordöstra hörnet');
+    'Sydvästra hörnet');
 
   for(let i=0;i<2;i++) stag(fast, x-3.4+i*0.35, 0.05, z-0.6, x-2.2+i*0.35, 1.5, z-1.6, 0.03, 0xc6c9cc);
   for(let i=0;i<7;i++) stag(fast, x-3.35+i*0.17, 0.2+i*0.2, z-0.74-i*0.14, x-3.0+i*0.17, 0.2+i*0.2, z-0.74-i*0.14, 0.02, 0xc6c9cc);
@@ -1610,7 +1690,7 @@ function kompostBygg(){
   }
   N('Kungsmynta','Origanum vulgare','blomma','🌸', x-0.6, 0.75, z+2.2,
     'Oreganon som brett ut sig till ett rosalila täcke framför komposten. Doftar pizza när man går genom den, och surrar av bin.',
-    'Nordöstra hörnet');
+    'Sydvästra hörnet');
 
   /* akleja med fröställningar */
   for(let i=0;i<18;i++){
@@ -1620,119 +1700,139 @@ function kompostBygg(){
   }
   N('Akleja','Aquilegia vulgaris','blomma','🔔', x+1.2, 1.0, z+2.0,
     'Aklejorna har blommat över och står kvar som torra fröställningar — de sår sig själva och dyker upp överallt nästa år.',
-    'Nordöstra hörnet');
-
-  /* rosor i bakgrunden */
-  for(let i=0;i<3;i++){
-    const rx=x+2.4+i*0.9, rz=z-1.6;
-    buske(rx, rz, 0.55, 1.1, 0x3f6636);
-    for(let k=0;k<5;k++) klotL(lov, rx+rr(-0.35,0.35), rr(0.6,1.1), rz+rr(-0.3,0.3), 0.07, F.rosaM);
-  }
+    'Sydvästra hörnet');
 }
 
-/* bärhörnan i norr: vinbär, hallon, daggkåpa, torrakan */
+/* brynet: vinbär och bönstänger nordost om tältet, torrakan, hallon vid växthuset */
 function barhornanBygg(){
-  /* svarta vinbär */
-  for(let i=0;i<4;i++) barbuske(0.4+i*1.5, -7.9+rr(-0.3,0.3), 0.62, 1.1, 0x4e7a33, F.bar, 20);
-  N('Svarta vinbär','Ribes nigrum','bar','🫐', 2.0, 1.5, -7.9,
-    'Vinbärsbuskarna med tunga svarta klasar under bladen. Doften från bladen sitter kvar i händerna länge.',
-    'Norra kanten av gräsmattan');
+  /* svarta vinbär — buskraden mellan tältet och odlingsbädden */
+  barbuske(6.6, 12.4, 0.6, 1.05, 0x4e7a33, F.bar, 18);
+  barbuske(7.8, 13.0, 0.62, 1.1, 0x4e7a33, F.bar, 20);
+  barbuske(9.0, 12.5, 0.58, 1.0, 0x4e7a33, F.bar, 16);
+  barbuske(10.1, 13.2, 0.6, 1.05, 0x4e7a33, F.bar, 18);
+  N('Svarta vinbär','Ribes nigrum','bar','🫐', 8.2, 1.5, 12.7,
+    'Vinbärsbuskarna med tunga svarta klasar under bladen, i raden nordost om tältet. Doften från bladen sitter kvar i händerna länge.',
+    'Nordost om tältet');
 
-  /* hallonrad */
+  /* hallonraden längs växthusets södra sida, väster om luktärterna */
   for(let i=0;i<7;i++){
-    const px=6.4+i*0.42, pz=-10.2;
+    const px=8.1+i*0.42, pz=25.75;
     stag(fast, px, 0, pz, px+rr(-0.1,0.1), rr(1.2,1.7), pz+rr(-0.1,0.1), 0.018, 0x6f8f4a);
     for(let k=0;k<8;k++) plan(lov, px+rr(-0.2,0.2), rr(0.4,1.6), pz+rr(-0.15,0.15), 0.2, 0.18, 0x4e7a3a, -0.3, rr(0,TAU), 0);
     for(let k=0;k<4;k++) klotL(fast, px+rr(-0.15,0.15), rr(0.7,1.5), pz+rr(-0.12,0.12), 0.035, 0xc44a5a);
   }
-  N('Hallon','Rubus idaeus','bar','🍇', 7.6, 1.9, -10.2,
-    'Hallonraden längs häcken i norr — man går sällan förbi utan att stanna.',
-    'Norra häcken');
+  N('Hallon','Rubus idaeus','bar','🍇', 9.4, 1.9, 25.7,
+    'Hallonraden vid växthusets sydvästra hörn — man går sällan förbi utan att stanna.',
+    'Vid växthuset');
 
-  /* bönstänger */
-  for(let g=0; g<2; g++){
-    const bx=8.9+g*1.2, bz=-9.3;
+  /* bönstänger och en liten plankkantad bädd */
+  for(const g of [[11.6,12.0],[12.8,12.7]]){
     for(let i=0;i<4;i++){
       const a=i/4*TAU;
-      stag(fast, bx+Math.cos(a)*0.35, 0, bz+Math.sin(a)*0.35, bx, 1.85, bz, 0.018, 0xb5a17a);
+      stag(fast, g[0]+Math.cos(a)*0.35, 0, g[1]+Math.sin(a)*0.35, g[0], 1.85, g[1], 0.018, 0xb5a17a);
       for(let k=0;k<7;k++){
         const t=k/7;
-        plan(lov, bx+Math.cos(a)*0.35*(1-t)+rr(-0.08,0.08), 0.2+t*1.6, bz+Math.sin(a)*0.35*(1-t), 0.16, 0.16, 0x4a7a33, -0.3, rr(0,TAU), 0);
+        plan(lov, g[0]+Math.cos(a)*0.35*(1-t)+rr(-0.08,0.08), 0.2+t*1.6, g[1]+Math.sin(a)*0.35*(1-t), 0.16, 0.16, 0x4a7a33, -0.3, rr(0,TAU), 0);
       }
     }
   }
-  N('Bönor','Phaseolus vulgaris','gront','🫘', 9.5, 2.1, -9.3,
-    'Bönstängerna som står som små tipi-tält i norra landet, med rankor hela vägen upp.',
-    'Norra kanten', true);
+  box(fast, 10.9, 0.1, 12.9, 1.8, 0.2, 1.2, F.jordTorr);
+  box(fast, 10.9, 0.14, 12.28, 1.9, 0.16, 0.07, F.barkLjus);
+  box(fast, 10.9, 0.14, 13.52, 1.9, 0.16, 0.07, F.barkLjus);
+  N('Bönor','Phaseolus vulgaris','gront','🫘', 12.2, 2.1, 12.3,
+    'Bönstängerna som står som små tipi-tält vid odlingsbädden nordost om tältet, med rankor hela vägen upp.',
+    'Nordost om tältet', true);
 
-  /* daggkåpa */
-  for(let i=0;i<26;i++){
-    const px=-1.6+rr(-1.6,1.6), pz=-8.6+rr(-0.8,0.8);
+  /* daggkåpa vid tältlinorna och röllika i gräskanten */
+  for(let i=0;i<14;i++){
+    const px=5.0+rr(0,1.4), pz=12.4+rr(0,1.1);
     bladtuva(px, pz, 0.24, 6, 0x7fa04a, 0.35);
     for(let k=0;k<3;k++) klotL(lov, px+rr(-0.18,0.18), rr(0.22,0.35), pz+rr(-0.18,0.18), 0.06, 0xc4cf5a);
   }
-  N('Daggkåpa','Alchemilla mollis','blomma','💚', -1.6, 0.7, -8.6,
-    'Daggkåpan med sina veckade blad som håller kvar daggdroppar hela morgonen, och skummigt gulgröna blomklasar.',
-    'Norra kanten, vid torrakan');
-
-  /* röllika */
-  for(let i=0;i<16;i++){
-    const px=2.6+rr(-1.2,1.6), pz=-9.4+rr(-0.5,0.5);
+  N('Daggkåpa','Alchemilla mollis','blomma','💚', 5.6, 0.7, 12.9,
+    'Daggkåpan med sina veckade blad som håller kvar daggdroppar hela morgonen, alldeles vid tältlinorna.',
+    'Vid tältet');
+  for(let i=0;i<9;i++){
+    const px=6.0+rr(0,1.4), pz=11.2+rr(0,0.8);
     stag(fast, px, 0, pz, px, rr(0.4,0.65), pz, 0.01, 0x7f9a5a);
     for(let k=0;k<6;k++) klotL(lov, px+rr(-0.09,0.09), rr(0.42,0.68), pz+rr(-0.09,0.09), 0.045, F.vitBlom);
   }
-  N('Röllika','Achillea millefolium','blomma','🤍', 3.0, 0.9, -9.4,
-    'De vita, platta blomflockarna i den vilda kanten mot häcken.',
-    'Norra kanten', true);
+  N('Röllika','Achillea millefolium','blomma','🤍', 6.6, 0.9, 11.5,
+    'De vita, platta blomflockarna i den vilda gräskanten vid tältet.',
+    'Vid tältet', true);
 
-  /* torrakan */
-  trad(-1.4, -9.9, 4.2, 1.6, {typ:'dod'});
-  N('Torrakan','Död stam','trad','🪵', -1.4, 3.4, -9.9,
-    'Den silvergrå döda stammen som fått stå kvar — full av hål där insekter och fåglar bor.',
-    'Norra kanten');
-
-  /* fågelbord vid torrakan */
-  rullo(fast, -2.6, 0.75, -9.4, 0.035, 1.5, 0x6b5945);
-  box(fast, -2.6, 1.52, -9.4, 0.42, 0.05, 0.36, F.traMork);
-  kon(fast, -2.6, 1.72, -9.4, 0.3, 0.26, 0x8a5a3a);
-  N('Fågelbordet','Fågelbord','hus','🐦', -2.6, 2.0, -9.4,
-    'Fågelbordet vid torrakan, där talgoxarna håller till året runt.',
-    'Norra kanten');
-
+  /* torrakan i brynet mellan gräsmattan och växthuset, med fågelbordet intill */
+  trad(10.5, 7.6, 4.2, 1.6, {typ:'dod'});
+  N('Torrakan','Död stam','trad','🪵', 10.5, 3.4, 7.6,
+    'Den silvergrå döda stammen som fått stå kvar i brynet nordost om tältet — full av hål där insekter och fåglar bor.',
+    'Mellan gräsmattan och växthuset');
+  for(let i=0;i<3;i++) rullo(fast, 10.5+rr(-0.7,0.7), 0.1, 7.6+rr(-0.6,0.6), rr(0.07,0.11), 0.16, 0xb5714f);
+  rullo(fast, 9.9, 0.14, 8.1, 0.05, 0.22, F.zink);
+  rullo(fast, 9.2, 0.75, 8.4, 0.035, 1.5, 0x6b5945);
+  box(fast, 9.2, 1.52, 8.4, 0.42, 0.05, 0.36, F.traMork);
+  kon(fast, 9.2, 1.72, 8.4, 0.3, 0.26, 0x8a5a3a);
+  N('Fågelbordet','Fågelbord','hus','🐦', 9.2, 2.0, 8.4,
+    'Fågelbordet vid torrakan, med terrakottakrukorna och den gamla vattenkannan vid foten. Talgoxarna håller till här året runt.',
+    'Vid torrakan');
 }
 
-/* perennrabatten längs husets södra vägg */
 function rabattBygg(){
-  const x=-9.7;                              // rabatten löper längs husets baksida
-  for(let i=0;i<24;i++)
-    axblomma(x+rr(-0.35,0.35), -4.6+rr(0,5.2), rr(0.7,1.15), i%3? 0x9a5fa8 : 0xb06fc0, 0x5f7a3a, 0.05);
-  N('Fackelblomster','Lythrum salicaria','blomma','💜', x, 1.5, -2.6,
-    'De höga lilarosa axen längs husets baksida, som står och vajar hela juli och augusti.',
-    'Rabatten längs huset', true);
+  /* fackelblomster i rabatten mellan grusremsan och gräset, längs södra fasaden */
+  for(let i=0;i<18;i++)
+    axblomma(-9.4+rr(0,5.6), 14.15+rr(-0.25,0.25), rr(0.7,1.15), i%3? 0x9a5fa8 : 0xb06fc0, 0x5f7a3a, 0.05);
+  N('Fackelblomster','Lythrum salicaria','blomma','💜', -7.0, 1.5, 14.2,
+    'De höga lilarosa axen i rabatten längs husets trädgårdssida, som står och vajar hela juli och augusti.',
+    'Rabatten längs södra väggen', true);
 
-  for(let i=0;i<12;i++) blomstjalk(x+rr(-0.4,0.4), 1.2+rr(-0.9,0.9), rr(0.35,0.55), F.rod, F.gul, 0.06);
-  N('Krokosmia','Crocosmia × crocosmiiflora','blomma','❤️', x, 0.8, 1.2,
-    'De lysande röda småblommorna i rabattens södra ände, vid husknuten.',
-    'Rabatten längs huset', true);
+  for(let i=0;i<10;i++) blomstjalk(-11.0+rr(0,1.0), 13.7+rr(-0.3,0.3), rr(0.35,0.55), F.rod, F.gul, 0.06);
+  N('Krokosmia','Crocosmia × crocosmiiflora','blomma','❤️', -10.5, 0.8, 13.8,
+    'De lysande röda småblommorna i rabattens västra ände, nedanför burspråket.',
+    'Rabatten längs södra väggen', true);
 
-  for(let i=0;i<8;i++) bladtuva(x-0.55, -5.2+i*0.5, 0.3, 10, 0x5c8046, 0.5);
-
-  /* spaljé på baksidan med klätterväxt */
-  for(let i=0;i<7;i++) box(fast, -10.15, 1.4, -6.2+i*0.5, 0.05, 2.6, 0.05, F.tra);
-  for(let i=0;i<6;i++) box(fast, -10.15, 0.4+i*0.42, -4.7, 0.05, 0.05, 3.1, F.tra);
-  for(let i=0;i<26;i++) plan(lov, -10.1, rr(0.3,2.5), -6.2+rr(0,3.0), 0.22, 0.2, 0x4e7a33, 0, PI/2, rr(0,PI));
-  N('Klätterväxt','Humle eller vildvin','gront','🌿', -10.1, 2.8, -4.7,
-    'Spaljén på husets baksida med en klätterväxt som tar sig upp mot taket.',
-    'Husets norra hörn', true);
-
-  /* den långa bänken vid husväggen */
-  banke(-9.85, 4.4, 2.1, 0, F.traGra);
-  N('Husbänken','Träbänk','hus','🪑', -9.85, 1.1, 4.4,
-    'Den grånade träbänken mot husväggen, där man sitter och tar av sig skorna.',
-    'Vid husknuten mot trädgården');
+  /* västra gaveln: den grånade bänken, spaljén med klätterväxt och hosta vid sockeln */
+  banke(-14.65, 10.6, 1.9, PI/2, F.traGra);
+  N('Husbänken','Träbänk','hus','🪑', -14.7, 1.1, 10.6,
+    'Den grånade träbänken på grusfläcken vid västra gaveln, där man sitter och tar av sig skorna i kvällssolen.',
+    'Västra gaveln');
+  for(let i=0;i<7;i++) box(fast, -14.16, 1.4, 7.7+i*0.3, 0.05, 2.6, 0.05, F.tra);
+  for(let i=0;i<6;i++) box(fast, -14.16, 0.4+i*0.42, 8.6, 0.05, 0.05, 1.9, F.tra);
+  for(let i=0;i<26;i++) plan(lov, -14.24, rr(0.3,2.5), 7.6+rr(0,2.0), 0.22, 0.2, 0x4e7a33, 0, PI/2, rr(0,PI));
+  N('Klätterväxt','Humle eller vildvin','gront','🌿', -14.3, 2.8, 8.6,
+    'Spaljén på västra gaveln med en klätterväxt som tar sig upp mot takfoten.',
+    'Västra gaveln', true);
+  for(let i=0;i<6;i++) bladtuva(-14.5+rr(-0.2,0.2), 11.6+i*0.3, 0.3, 10, 0x5c8046, 0.5);
 }
 
-/* gränser: häckar, staket och grannarnas hus runt tomten */
+/* västkanten: såbädden med stockram och syrenbuskaget mot västra häcken */
+function vastkantenBygg(){
+  box(fast, -17.2, 0.03, 11.4, 4.4, 0.06, 2.9, F.jordTorr, 0, 0.04, 0);
+  rullo(fast, -17.2, 0.12, 10.0, 0.12, 4.5, F.barkLjus, 0, 0, PI/2);
+  rullo(fast, -17.2, 0.12, 12.8, 0.12, 4.5, F.barkLjus, 0, 0, PI/2);
+  rullo(fast, -19.4, 0.12, 11.4, 0.12, 2.8, F.barkLjus, PI/2, 0, 0);
+  rullo(fast, -15.0, 0.12, 11.4, 0.12, 2.8, F.barkLjus, PI/2, 0, 0);
+  for(let i=0;i<26;i++) tuva(-17.2+rr(-2.0,2.0), 11.4+rr(-1.2,1.2), i%3? F.grasTorr : 0x8a7f4a, rr(0.2,0.4));
+  for(let i=0;i<9;i++) box(fast, -17.2+rr(-1.9,1.9), 0.18, 11.4+rr(-1.1,1.1), 0.03, 0.3, 0.03, 0xe6e0cc);
+  /* vissna perenner mellan bädden och häcken */
+  for(let i=0;i<12;i++){
+    const px=-19.5+rr(0,0.9), pz=10.2+rr(0,2.6);
+    stag(fast, px, 0, pz, px+rr(-0.06,0.06), rr(0.4,0.75), pz, 0.012, 0xa08a5a);
+    klotL(fast, px, rr(0.42,0.78), pz, 0.04, 0xb5a06a);
+  }
+  N('Såbädden','Nysått land','gront','🌱', -17.2, 0.7, 11.4,
+    'Det nysådda landet inramat av stockar, med små vita pinnetiketter i raderna. Det ligger alldeles intill västra häcken, med grannens gavel bortom.',
+    'Mot västra häcken');
+
+  /* syrenbuskaget mellan såbädden och komposthörnan */
+  rulloL(fast, -17.0, 0.5, 13.9, 0.09, 1.0, F.bark);
+  rulloL(fast, -16.6, 0.45, 14.2, 0.07, 0.9, F.bark);
+  for(let i=0;i<6;i++)
+    klotL(lov, -17.0+rr(-0.9,0.9), rr(1.0,2.4), 13.9+rr(-0.7,0.7), rr(0.6,0.95), i%2? 0x4a6b3a : 0x557a42);
+  N('Syrenbuskaget','Syringa vulgaris','trad','🪻', -17.0, 3.0, 13.9,
+    'Det flerstammiga syrenbuskaget mellan såbädden och komposten — i maj hänger det tungt av blomklasar.',
+    'Västra kanten');
+}
+
+/* gränser: häckar, grannarnas hus och röda ladan */
 function granserBygg(){
   const x1=TOMT.x1, x2=TOMT.x2;
 
@@ -1743,50 +1843,75 @@ function granserBygg(){
     hack(ax, sodraGransen(ax), bx, sodraGransen(bx), 2.3, 1.0);
   }
   hack(x1, 0.6, x1, TOMT.djupV, 2.5, 1.0);            // västra gränsen
-  hack(x2, 2.0, x2, TOMT.djupO, 2.5, 1.0);            // östra gränsen
+  /* östra gränsen: hög häck, utom framför röda ladan där den hålls låg och klippt */
+  hack(x2, 2.0, x2, 19.8, 2.5, 1.0);
+  for(let i=0;i<14;i++) klotL(lov, x2, rr(0.35,0.6), 20.3+i*0.55, rr(0.4,0.52), i%3? F.hack : 0x3a5c30);
+  hack(x2, 28.2, x2, TOMT.djupO, 2.4, 1.0);
   N('Avenbokshäcken','Carpinus betulus','trad','🌳', x2, 3.0, 14.0,
-    'Den höga, klippta avenbokshäcken som ramar in tomten på tre sidor och håller insynen ute. På vintern sitter de bruna löven kvar.',
+    'Den höga, klippta avenbokshäcken som ramar in tomten på tre sidor — utom närmast röda ladan, där häcken hålls låg så att man ser den från växthuset.',
     'Runt tomten', true);
 
-  /* vitt spjälstaket i sydöstra hörnet, där repgungan hänger */
-  spjalstaket(12.0, sodraGransen(12.0), x2, sodraGransen(x2), 1.1);
-  spjalstaket(x2, sodraGransen(x2), x2, 22.0, 1.1);
-  N('Spjälstaketet','Vitmålat staket','hus','🏳️', 16.5, 1.5, sodraGransen(16.5),
-    'Det vita spjälstaketet mot grannen i sydost, där repgungan hänger.',
-    'Sydöstra hörnet');
+  /* röda ladan — strax öster om växthusgaveln, hos grannen */
+  box(fast, 22.7, 2.2, 24.0, 3.2, 4.4, 7.4, F.ladaRod);
+  for(const sd of [-1,1]) box(fast, 22.7+sd*0.9, 5.15, 24.0, 2.15, 0.14, 7.8, 0x6b4a3a, 0, 0, sd*0.62);
+  box(fast, 22.7, 5.62, 24.0, 0.16, 0.12, 7.6, 0x5a3f30);
+  box(fast, 21.06, 2.7, 22.6, 0.06, 0.7, 0.6, 0x39474a);            // fönster med ljus karm
+  box(fast, 21.04, 2.7, 22.6, 0.04, 0.82, 0.72, 0xd8cfae);
+  box(fast, 21.07, 1.1, 25.2, 0.06, 2.2, 1.3, 0x7a3226);            // plankport
+  box(fast, 21.1, 4.15, 24.0, 0.1, 0.14, 7.5, 0x8a8f92);            // hängränna
+  rullo(fast, 21.12, 2.1, 20.5, 0.05, 4.0, 0x8a8f92);               // stuprör
+  N('Röda ladan','Grannens lada','hus','🧱', 22.7, 5.9, 24.0,
+    'Grannens faluröda lada bara några meter öster om växthuset — genom gavelfönstret ser man den på nära håll, bakom den låga klippta häcken.',
+    'Bortom östra gränsen');
 
-  /* grannen i väster */
-  box(fast, -27.5, 2.2, 9.0, 8.0, 4.4, 6.5, F.husGrann);
-  for(const sd of [-1,1]) box(fast, -27.5, 5.3, 9.0+sd*1.6, 8.4, 0.14, 3.6, 0x8f8a80, sd*0.5, 0, 0);
+  /* grannens lilla röda bod med grått plåttak, nordost om växthuset */
+  box(fast, 21.9, 0.9, 13.4, 2.0, 1.8, 2.4, F.ladaRod);
+  for(const sd of [-1,1]) box(fast, 21.9+sd*0.55, 1.95, 13.4, 1.25, 0.1, 2.6, 0x9a9da0, 0, 0, sd*0.5);
+  box(fast, 22.3, 2.5, 13.0, 0.4, 0.9, 0.4, 0x9a5a48);              // tegelskorsten
+  box(fast, 22.3, 2.72, 13.0, 0.46, 0.1, 0.46, 0xd8d0c0);
+
+  /* ljust grannhus i nordost, bortom östgränsen vid gatan */
+  box(fast, 24.5, 2.0, 3.5, 5.0, 4.0, 6.0, F.husGrann);
+  for(const sd of [-1,1]) box(fast, 24.5, 4.7, 3.5+sd*1.4, 5.4, 0.14, 3.2, 0x8f8a80, sd*0.5, 0, 0);
+
+  /* grannen i väster: beige putsad villa med gaveln mot tomten, och ett lågt mörkt garage */
+  box(fast, -25.8, 2.3, 11.0, 5.6, 4.2, 6.6, 0xcfc2b0);
+  for(let i=0;i<6;i++){
+    const t=i/6;
+    box(fast, -25.8, 4.4+t*1.5, 11.0, 5.6*(1-t*0.92), 0.28, 6.6, 0xcfc2b0);
+  }
+  box(fast, -23.0, 4.9, 11.0, 0.1, 0.7, 0.55, 0x39474a);            // gavelfönster i nock
+  box(fast, -23.6, 1.1, 14.6, 3.2, 2.2, 3.6, 0x66665f);             // garaget, platt tak
+  /* grannens rosa blommor som skymtar genom häcken */
+  for(let i=0;i<6;i++) klotL(lov, -20.7+rr(-0.3,0.3), rr(0.7,1.3), 15.0+rr(0,2.0), 0.09, F.rosa);
 
   /* grannen i söder */
   box(fast, -6.0, 2.1, 27.0, 7.0, 4.2, 6.0, F.husGrann);
   for(const sd of [-1,1]) box(fast, -6.0, 5.1, 27.0+sd*1.5, 7.4, 0.14, 3.4, 0x8f8a80, sd*0.5, 0, 0);
 
-  /* röda ladan i sydost, den man ser genom växthusfönstret */
-  box(fast, 14.5, 2.3, 34.0, 6.0, 4.6, 5.0, F.ladaRod);
-  for(const sd of [-1,1]) box(fast, 14.5, 5.4, 34.0+sd*1.3, 6.4, 0.14, 3.0, 0x6b4a3a, sd*0.6, 0, 0);
-  box(fast, 14.5, 5.7, 34.0, 6.2, 0.12, 0.14, 0x5a3f30);
-  N('Röda ladan','Grannens lada','hus','🧱', 14.5, 6.4, 34.0,
-    'Grannens faluröda lada bortom häcken i sydost.',
-    'Bortom södra häcken');
-
-  /* granngården på andra sidan gatan */
-  box(fast, 16.0, 2.2, -14.0, 7.0, 4.4, 6.0, F.husGrann);
-  for(const sd of [-1,1]) box(fast, 16.0, 5.3, -14.0+sd*1.5, 7.4, 0.14, 3.4, 0x8f8a80, sd*0.5, 0, 0);
+  /* granngården på andra sidan gatan: vitt hus, vit pergola och en röd bod */
+  box(fast, 15.0, 2.2, -12.5, 7.0, 4.4, 6.0, F.husGrann);
+  for(const sd of [-1,1]) box(fast, 15.0, 5.3, -12.5+sd*1.5, 7.4, 0.14, 3.4, 0x6e6e68, sd*0.5, 0, 0);
+  for(const px of [11.5,13.3]) for(const pz of [-8.2,-6.8]) box(fast, px, 1.05, pz, 0.12, 2.1, 0.12, 0xeeeae0);
+  box(fast, 12.4, 2.15, -7.5, 2.3, 0.1, 1.8, 0xeeeae0);
+  box(fast, 18.6, 1.1, -8.0, 2.2, 2.2, 2.6, 0x9c3a2c);
 
   /* träd runt om */
-  trad(-4.0, 33.0, 8.5, 3.6, {typ:'pil', lov:0x7f9a62, bark:0x6b5c4a, stamR:0.22});
-  N('Hängpilen','Salix','trad','🌾', -4.0, 9.0, 33.0,
-    'Den stora hängpilen hos grannen som syns över häcken från hela trädgården.',
-    'Bortom södra häcken', true);
-  for(let i=0;i<8;i++) trad(2 + i*3.0 + rr(-1,1), 30.0+rr(-2,3), rr(7,10), rr(1.6,2.4), {typ:'bjork', stamR:0.16});
-  N('Björkar','Betula pendula','trad','🌲', 11.0, 8.5, 31.0,
-    'Björkarna bakom häcken — de som susar och lyser gult först av alla på hösten.',
-    'Bortom södra häcken');
-  for(let i=0;i<5;i++) trad(-25.0+rr(-1,1), 16+i*4.5, rr(7,9), rr(1.8,2.6), {typ:'lov', lov:0x486b34});
+  trad(-21.5, -2.5, 8.5, 3.0, {typ:'lov', lov:0x486b34});           // stora trädet vid NV-hörnet
+  trad(20.8, 11.5, 7.0, 2.8, {typ:'pil', lov:0x7f9a62, bark:0x6b5c4a, stamR:0.2});
+  N('Hängpilen','Salix','trad','🌾', 20.8, 7.4, 11.5,
+    'Grannens stora pil som hänger in över brynet i öster.',
+    'Bortom östra häcken', true);
+  for(let i=0;i<5;i++) trad(21.5+rr(-0.8,2.6), 17.5+i*2.2+rr(-0.8,0.8), rr(7,10), rr(1.6,2.4), {typ:'bjork', stamR:0.16});
+  N('Björkar','Betula pendula','trad','🌲', 22.5, 8.5, 21.0,
+    'Björkarna bakom häcken i öster — de som susar och lyser gult först av alla på hösten. Kvällssolen fastnar i topparna.',
+    'Bortom östra häcken');
+  for(let i=0;i<5;i++) trad(-14+i*5.2+rr(-1.2,1.2), 31.5+rr(-1,2.5), rr(7,9), rr(1.8,2.6), {typ:'lov', lov:0x486b34});
   for(let i=0;i<6;i++) trad(-6+i*5.5+rr(-1,1), -13.5+rr(-2,2), rr(7,9), rr(1.8,2.4), {typ:'bjork'});
-  for(let i=0;i<4;i++) trad(24.5+rr(-1,1), 2+i*7, rr(7,9), rr(1.8,2.4), {typ:'lov', lov:0x3f6330});
+  /* den stora lönnen vars krona hänger över tältet */
+  trad(3.2, 20.6, 7.2, 3.2, {typ:'lov', lov:0x3c5c2c, grenar:5, klot:11});
+  /* buskband längs södra häckens insida */
+  for(let i=0;i<7;i++) klotL(lov, 0.5+i*1.5+rr(-0.5,0.5), rr(0.8,1.6), sodraGransen(0.5+i*1.5)-1.6+rr(-0.4,0.4), rr(0.7,1.2), i%2? F.lov : F.hack);
 }
 
 /* småsaker: maskrosor, prästkragar och tuvor över hela mattan */
@@ -1796,7 +1921,10 @@ function angsblommorBygg(){
     if(x < TOMT.x1+0.8 || x > TOMT.x2-0.8) return false;
     if(x > -14.6 && x < -1.0 && z > 5.0 && z < 13.0) return false;   // huset
     if(x > -12.5 && x < -1.5 && z < 5.4) return false;               // grusplanen
-    if(x > 9.2 && x < 17.8 && z > 4.6 && z < 9.4) return false;      // växthuset
+    if(x > -1.7 && x < 3.9 && z > 5.0 && z < 12.9) return false;     // grusplatsen
+    if(x > -10.3 && x < -1.3 && z > 12.4 && z < 14.3) return false;  // grusremsan
+    if(x > -8.2 && x < -0.9 && z > 15.2 && z < 20.1) return false;   // odlingszonen
+    if(x > 9.6 && x < 18.4 && z > 21.2 && z < 26.1) return false;    // växthuset
     return true;
   }
   for(let i=0;i<420;i++){
@@ -1842,33 +1970,31 @@ markenBygg();
 placera(-13.6, -0.6, -7.8, 9.0, -PI/2);   husetBygg();
 placera(-23.2, -0.6, -6.9, -0.2, -PI/2);  framsidanBygg();
 
-/* Längs husets trädgårdsvägg ligger allt på rad, som på fotona:
-   grusplatsen vid verandan, sedan utduschen, zinkkaren och rosraden. */
-placera( -7.6,  7.6, -11.5, 15.6, 0);      grusplatsenBygg();
-placera( -8.6, -5.6,  -9.0, 13.6, -PI/2);  utduschBygg();
-placera( -9.7, -1.5,  -8.0, 12.9, -PI/2);  rabattBygg();
+/* Husnära, enligt fotona: grusplatsen utmed östra gaveln nedanför verandan,
+   grusremsan med dusch och zinkkar längs södra långsidan. */
+platsNollstall();                          grusplatsenBygg();
+placera(0, 0, -2.35, 13.3, -PI/2);         utduschBygg();
+platsNollstall();                          rabattBygg();
 
-/* Gräsmattan utanför: fikabordet vid husknuten, sedan tältet med
-   silverpilen, och poolen och boden längre bort på samma linje. */
-placera( -3.4, -2.0,   0.2, 14.2, 0);      fikabordBygg();
-placera( -4.6, -6.6,   4.2, 16.2, 0);      taltBygg();
-placera(  5.6, -8.6,   9.2, 16.8, 0);      poolOchBodBygg();
+/* Tältlinjen väster→öster över gräsmattan: tält, silverpil, pool, bod */
+placera(-4.6, -6.6,  4.5, 15.0, 0);        taltBygg();
+platsNollstall();                          poolOchBodBygg();
+placera(-3.4, -2.0,  2.0, 16.0, 0);        fikabordBygg();
+placera( 1.6, -4.4,  8.2, 21.0, 0);        hangkorgBygg();
 
-/* Tvärs över gräsmattan, mot häcken: äppelträdet med hängkorgen */
-placera(  1.6, -4.4,   1.5, 21.5, 0);      hangkorgBygg();
+/* Odlingszonen söder om husets västra del; såbädd och kompost i väster */
+placera( 3.4,  3.6, -4.6, 18.2, 0);        odlingslandBygg();
+platsNollstall();                          vastkantenBygg();
+placera(12.6, -8.6, -16.4, 15.5, 0);       kompostBygg();
 
-/* Odlingarna mellan gräsmattan och växthuset */
-placera(  3.4,  3.6,   7.0,  8.5, 0);      odlingslandBygg();
+/* Växthuset i sydost med luktärterna mot söder och kökslandet intill */
+placera(11.8, -3.2, 14.0, 23.6, 0);        vaxthusBygg();
+placera(11.5, -1.05, 13.9, 25.9, 0);       luktartBygg();
+placera(12.5,  3.5, 18.1, 27.5, 0);        kokslandBygg();
 
-/* Växthuset med luktärtsväggen mot trädgården, köksland bredvid */
-placera( 11.8, -3.2,  15.5,  7.0, 0);      vaxthusBygg();
-placera( 11.5, -1.05, 15.2,  9.15, 0);     luktartBygg();
-placera( 12.5,  3.5,  15.0, 13.5, 0);      kokslandBygg();
-
-/* Vilda hörnen mot häcken i söder och sydost */
-placera(  2.0, -8.0,  11.3, 23.4, 0);      barhornanBygg();
-placera( 12.6, -8.6,  15.0, 21.5, 0);      kompostBygg();
-placera( 12.4,  7.6,  16.5, 27.0, 0);      repgungaBygg();
+/* Brynet nordost om tältet och det lutande repträdet vid gatan */
+platsNollstall();                          barhornanBygg();
+platsNollstall();                          repgungaBygg();
 
 platsNollstall();
 granserBygg();
@@ -2087,8 +2213,8 @@ document.getElementById('pStang').onclick = stangPanel;
    ========================================================================== */
 const OGON = 1.62;
 const kam = {
-  pos: new THREE.Vector3(5.0, OGON, 19.5),
-  gir: 1.05,           // vänster/höger
+  pos: new THREE.Vector3(2.2, OGON, 17.8),
+  gir: 0.85,           // vänster/höger
   lut: -0.04,          // upp/ner
   flyg: false
 };
@@ -2157,10 +2283,9 @@ function flyttaSpak(e){
 const hinder = [
   {x1:-14.1, x2: -1.5, z1: 5.5,  z2:12.5, y2:5.9},   // huset
   {x1: -8.5, x2: -5.3, z1: 3.7,  z2: 5.6, y2:3.2},   // farstukvisten
-  {x1: -4.7, x2: -1.5, z1: 2.9,  z2: 5.6, y2:1.6},   // trädäcket
-  {x1: -5.4, x2: -2.2, z1:12.3,  z2:15.4, y2:3.3},   // verandan
-  {x1:-11.6, x2: -8.6, z1: 1.3,  z2: 3.5, y2:1.6},   // bilen
-  {x1: 16.3, x2: 19.7, z1:10.6,  z2:13.4, y2:2.9},   // boden
+  {x1: -2.1, x2:  1.1, z1: 5.2,  z2: 8.0, y2:3.1},   // verandan
+  {x1:  0.4, x2:  2.6, z1: 0.3,  z2: 4.9, y2:1.7},   // bilen
+  {x1: 14.8, x2: 17.8, z1:13.8,  z2:16.6, y2:2.9},   // boden
 ];
 function iHinder(x,z){
   for(const h of hinder) if(x>h.x1 && x<h.x2 && z>h.z1 && z<h.z2) return true;
@@ -2198,26 +2323,25 @@ function styr(dt){
    11. Rundtur
    ========================================================================== */
 const TUR = [
-  { txt:'Vi börjar på gräsmattan',   pos:[5.5,1.62,18.5],  se:[-6.0,1.6,10.0] },
-  { txt:'Huset från trädgårdssidan', pos:[-1.5,1.62,15.8], se:[-8.0,2.6,12.4] },
-  { txt:'Ut genom grinden till gatan',pos:[-6.9,1.62,2.6], se:[-6.9,1.2,-3.5] },
-  { txt:'Framsidan och farstukvisten',pos:[-6.9,1.62,0.4], se:[-6.9,2.2,5.2] },
-  { txt:'Lavendelraden längs staketet',pos:[-13.5,1.62,2.2],se:[-2.0,0.9,1.0] },
-  { txt:'Rabatten längs husväggen',  pos:[-5.5,1.62,14.2], se:[-9.5,1.1,12.8] },
-  { txt:'Utduschen och zinkbadkaren',pos:[-11.5,1.62,15.2],se:[-15.5,1.2,14.2] },
-  { txt:'Grusplatsen med parasollet',pos:[-1.5,1.62,15.2], se:[-5.5,1.4,15.9] },
-  { txt:'Tältet och fikabordet',     pos:[1.8,1.62,11.4],  se:[0.6,1.3,13.6] },
-  { txt:'Hängkorgen i äppelträdet',  pos:[4.8,1.62,11.6],  se:[3.1,1.9,9.7] },
-  { txt:'Bärhörnan mot gatan',       pos:[5.2,1.62,8.4],   se:[7.0,1.2,4.8] },
-  { txt:'Badpoolen',                 pos:[5.6,1.62,10.6],  se:[7.5,1.0,8.2] },
-  { txt:'In i växthuset',            pos:[8.2,1.62,7.0],   se:[15.0,1.4,7.0] },
-  { txt:'Bland tomater och gurkor',  pos:[12.6,1.62,7.0],  se:[17.2,1.3,7.0] },
-  { txt:'Luktärtsväggen',            pos:[13.2,1.62,10.9], se:[13.2,1.2,9.2] },
-  { txt:'Kökslandet',                pos:[11.6,1.62,13.2], se:[14.2,0.9,15.8] },
-  { txt:'Jordgubbslandet',           pos:[5.0,1.62,12.6],  se:[7.0,0.4,15.2] },
-  { txt:'Kompost- och vildhörnan',   pos:[10.0,1.62,18.2], se:[10.6,1.2,21.2] },
-  { txt:'Repgungan i stora trädet',  pos:[14.0,1.62,21.4], se:[17.0,1.6,22.6] },
-  { txt:'Hela trädgården ovanifrån', pos:[0.0,20.0,40.0],  se:[2.0,1.0,13.0] }
+  { txt:'Vi börjar på gräsmattan',    pos:[2.2,1.62,17.8],  se:[-6.0,2.2,11.0] },
+  { txt:'Grusplatsen och verandan',   pos:[3.2,1.62,10.6],  se:[-0.8,1.6,7.6] },
+  { txt:'Ut genom grinden till gatan',pos:[-6.9,1.62,2.6],  se:[-6.9,1.2,-3.5] },
+  { txt:'Framsidan och farstukvisten',pos:[-7.2,1.62,1.2],  se:[-7.8,2.2,5.4] },
+  { txt:'Bänken vid västra gaveln',   pos:[-16.3,1.62,9.4], se:[-14.4,1.3,10.6] },
+  { txt:'Komposten och såbädden',     pos:[-13.8,1.62,13.6],se:[-17.4,1.1,15.4] },
+  { txt:'Jordgubbslandet',            pos:[-2.5,1.62,20.6], se:[-6.0,0.6,17.6] },
+  { txt:'Grusremsan och utduschen',   pos:[-8.2,1.62,15.0], se:[-3.2,1.4,13.3] },
+  { txt:'Fikabordet',                 pos:[0.0,1.62,18.2],  se:[2.0,1.0,16.0] },
+  { txt:'Tältet och silverpilen',     pos:[1.6,1.62,14.0],  se:[5.8,1.4,14.6] },
+  { txt:'Poolen och boden',           pos:[6.8,1.62,15.8],  se:[13.5,1.2,15.2] },
+  { txt:'Hängkorgen i äppelträdet',   pos:[4.6,1.62,19.6],  se:[7.6,1.8,20.8] },
+  { txt:'Torrakan och knutrepet',     pos:[8.6,1.62,10.6],  se:[13.0,1.8,5.2] },
+  { txt:'In i växthuset',             pos:[7.8,1.62,23.6],  se:[14.0,1.4,23.6] },
+  { txt:'Bland tomater och gurkor',   pos:[12.4,1.62,23.6], se:[17.4,1.3,23.7] },
+  { txt:'Östfönstret och röda ladan', pos:[15.6,1.62,23.6], se:[22.0,2.0,24.0] },
+  { txt:'Luktärtsväggen',             pos:[13.8,1.62,27.6], se:[13.6,1.3,25.7] },
+  { txt:'Kökslandet',                 pos:[13.6,1.62,26.2], se:[16.4,0.9,26.6] },
+  { txt:'Hela trädgården ovanifrån',  pos:[-2.0,21.0,42.0], se:[0.0,1.0,13.0] }
 ];
 let tur = null;
 function startaTur(){

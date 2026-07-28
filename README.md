@@ -47,7 +47,7 @@ Förstasidans chatt kan även användas med rösten: mikrofonknappen använder w
 - **Morgon / Dag / Kväll** flyttar solen och ändrar himlen.
 - Arter som var svåra att artbestämma på foto är märkta *”osäker art”* i informationsrutan.
 
-Tomtens form och storlek är hämtade från förrättningskartan: knappt 40 meter längs gatan i norr, grundare i väster och djupare i öster, drygt tusen kvadratmeter. Huset ligger med långfasaden och entrén mot gatan, trädgården bakom och österut. Var sakerna i trädgården står är däremot fortfarande gissat.
+Tomtens form och storlek är hämtade från förrättningskartan: knappt 40 meter längs gatan i norr, grundare i väster och djupare i öster, drygt tusen kvadratmeter. Huset ligger med långfasaden och entrén mot gatan. Planlösningen är därefter härledd ur fotona bild för bild: verandan vid nordösthörnet med grusplatsen nedanför östra gaveln, grusremsan med utduschen och zinkkaren längs södra långsidan, tältlinjen tält–silverpil–pool–bod österut, odlingszonen söder om husets västra del, komposten och såbädden i väster, och växthuset i sydost med luktärterna mot söder och röda ladan strax bortom gavelfönstret.
 
 Tekniskt: ett enda HTML-dokument plus `vendor/three.min.js` (three.js r160, MIT, medföljer så sidan fungerar offline — ingen CDN). Allt statiskt slås ihop till två stora mesh:ar, så hela trädgården ritas i praktiken i två anrop och går mjukt även på telefon.
 
