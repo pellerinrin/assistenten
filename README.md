@@ -42,12 +42,14 @@ Förstasidans chatt kan även användas med rösten: mikrofonknappen använder w
 `tradgard.html` är en fristående 3D-värld av trädgården, byggd efter 16 foton. Den nås från **Mer**-fliken eller direkt på `/tradgard.html` och kräver ingen inloggning.
 
 - **74 namngivna saker** — blommor, bär, grönsaker, träd, byggnader och möbler. Varje sak har svenskt namn, latinskt namn och en kort beskrivning. Namnlapparna kan tryckas på, och **Växtlistan** har sökfält och flyger kameran till det man väljer.
-- **Gå runt** med W A S D (eller styrspaken på telefon) och dra för att titta. `F` ger flygläge, `L` släcker namnlapparna.
+- **Gå runt** med bara två tangenter: `↑` går framåt och `←` `→` svänger, som att styra en cykel — musen behövs inte. Farten och svängen accelererar mjukt och rullar ut, och blicken rätar upp sig själv när man går rakt fram. `Shift` springer, `Q`/`E` kliver i sidled, mellanslag rätar upp blicken, `F` ger flygläge där man flyger dit man tittar, `L` släcker namnlapparna. På telefon: styrspaken går framåt och svänger.
 - **Rundtur** går igenom trädgårdens 20 platser av sig själv, från gräsmattan ut genom grinden och tillbaka in i växthuset.
 - **Morgon / Dag / Kväll** flyttar solen och ändrar himlen.
 - Arter som var svåra att artbestämma på foto är märkta *”osäker art”* i informationsrutan.
 
 Tomtens form och storlek är hämtade från förrättningskartan: knappt 40 meter längs gatan i norr, grundare i väster och djupare i öster, drygt tusen kvadratmeter. Huset ligger med långfasaden och entrén mot gatan. Planlösningen är därefter härledd ur fotona bild för bild: verandan vid nordösthörnet med grusplatsen nedanför östra gaveln, grusremsan med utduschen och zinkkaren längs södra långsidan, tältlinjen tält–silverpil–pool–bod österut, odlingszonen söder om husets västra del, komposten och såbädden i väster, och växthuset i sydost med luktärterna mot söder och röda ladan strax bortom gavelfönstret.
+
+Grafiken använder PBR-material med filmisk tonkurva, omgivningsljus genererat från himlen, vind i lövverket, riktiga grässtrån, avsmalnande stammar och skugga i gräset under trädkronorna. Detaljnivån halveras automatiskt på små skärmar, så telefoner får samma värld med ungefär hälften så många hörn.
 
 Tekniskt: ett enda HTML-dokument plus `vendor/three.min.js` (three.js r160, MIT, medföljer så sidan fungerar offline — ingen CDN). Allt statiskt slås ihop till två stora mesh:ar, så hela trädgården ritas i praktiken i två anrop och går mjukt även på telefon.
 

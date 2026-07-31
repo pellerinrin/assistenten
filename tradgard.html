@@ -218,16 +218,23 @@ body.touch #spak{display:block}
 <div id="hjalp">
   <div class="ruta">
     <h2 class="serif">Så går du runt</h2>
-    <h3>Dator</h3>
+    <h3>Bara två tangenter behövs</h3>
     <ul>
-      <li><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> eller piltangenter — gå</li>
-      <li>Håll ned musknappen och dra — titta omkring</li>
-      <li><kbd>Shift</kbd> — spring &nbsp;·&nbsp; <kbd>F</kbd> — flygläge (<kbd>Q</kbd>/<kbd>E</kbd> upp och ner)</li>
+      <li><kbd>↑</kbd> eller <kbd>W</kbd> — gå framåt &nbsp;·&nbsp; <kbd>↓</kbd> eller <kbd>S</kbd> — backa</li>
+      <li><kbd>←</kbd> och <kbd>→</kbd> (eller <kbd>A</kbd> och <kbd>D</kbd>) — <b>sväng</b> åt vänster och höger</li>
+    </ul>
+    <p>Du svänger alltså med piltangenterna precis som du styr en cykel — musen behövs inte för att komma runt.</p>
+    <h3>Om du vill mer</h3>
+    <ul>
+      <li><kbd>Shift</kbd> — spring &nbsp;·&nbsp; <kbd>Q</kbd> och <kbd>E</kbd> — kliv i sidled</li>
+      <li>Håll ned musknappen och dra — titta upp, ner och omkring</li>
+      <li><kbd>mellanslag</kbd> — räta upp blicken igen om du tittat snett</li>
+      <li><kbd>F</kbd> — flygläge, då flyger du dit du tittar (<kbd>R</kbd> upp, <kbd>C</kbd> ner)</li>
       <li><kbd>L</kbd> — namnlappar av/på &nbsp;·&nbsp; <kbd>Esc</kbd> — stäng rutor</li>
     </ul>
     <h3>Telefon &amp; platta</h3>
     <ul>
-      <li>Styrspaken nere till vänster — gå</li>
+      <li>Styrspaken nere till vänster: framåt och bakåt går, i sidled svänger</li>
       <li>Dra med fingret på bilden — titta omkring</li>
       <li>Tryck på en namnlapp eller en växt — läs mer</li>
     </ul>
@@ -245,7 +252,7 @@ body.touch #spak{display:block}
 </div>
 
 <div id="spak"><div class="bas"></div><div class="topp" id="spakTopp"></div></div>
-<div id="hjalphint">Gå med W A S D · dra för att titta</div>
+<div id="hjalphint">↑ går framåt · ← och → svänger</div>
 
 <script src="vendor/three.min.js"></script>
 <script>
@@ -263,6 +270,9 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+/* filmisk tonkurva — ger mjuka högdagrar i stället för utfrätta vita ytor */
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.5;
 document.body.appendChild(renderer.domElement);
 
 /* liten deterministisk slump, så trädgården ser likadan ut varje gång */
@@ -274,16 +284,48 @@ function ri(a,b){ return Math.floor(rr(a,b+1)); }
 const PI = Math.PI, TAU = Math.PI*2;
 
 /* delade grundformer */
+/* Kronbladen och löven är svagt kupade i stället för spikraka — det tar bort
+   det mesta av pappersklippskänslan för nästan ingen kostnad. */
+function kupatBlad(){
+  const g = new THREE.PlaneGeometry(1, 1, 3, 3);
+  const pos = g.attributes.position;
+  for(let i=0;i<pos.count;i++){
+    const x = pos.getX(i), y = pos.getY(i);
+    pos.setZ(i, (0.16 - x*x*0.5) * 0.34 + (0.25 - y*y) * 0.12);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+/* Ett grässtrå: brett vid basen, avsmalnande och framåtböjt i toppen. */
+function grasstra(){
+  const g = new THREE.PlaneGeometry(1, 1, 1, 4);
+  const pos = g.attributes.position;
+  for(let i=0;i<pos.count;i++){
+    const t = pos.getY(i) + 0.5;                 // 0 vid roten, 1 i spetsen
+    pos.setX(i, pos.getX(i) * (1 - t*0.88));
+    pos.setZ(i, t*t*0.3);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+
+/* Telefoner får glesare geometri — samma värld, hälften så många hörn. */
+const SMASKARM = matchMedia('(pointer: coarse)').matches &&
+                 Math.min(screen.width, screen.height) < 900;
+const D = SMASKARM ? 0 : 1;
 const G = {
   box:  new THREE.BoxGeometry(1,1,1),
-  sfar: new THREE.SphereGeometry(0.5, 8, 6),
-  sfarL:new THREE.SphereGeometry(0.5, 6, 4),
-  cyl:  new THREE.CylinderGeometry(0.5, 0.5, 1, 10, 1),
-  cylL: new THREE.CylinderGeometry(0.5, 0.5, 1, 6, 1),
-  kon:  new THREE.ConeGeometry(0.5, 1, 8),
-  konL: new THREE.ConeGeometry(0.5, 1, 5),
-  plan: new THREE.PlaneGeometry(1,1),
-  skiva:new THREE.CircleGeometry(0.5, 12)
+  sfar: new THREE.SphereGeometry(0.5, D?14:9, D?10:6),
+  sfarL:new THREE.SphereGeometry(0.5, D?9:7, D?6:5),
+  cyl:  new THREE.CylinderGeometry(0.5, 0.5, 1, D?14:9, 1),
+  cylL: new THREE.CylinderGeometry(0.5, 0.5, 1, D?9:6, 1),
+  stam: new THREE.CylinderGeometry(0.34, 0.5, 1, D?11:7, 1),
+  kon:  new THREE.ConeGeometry(0.5, 1, D?13:8),
+  konL: new THREE.ConeGeometry(0.5, 1, D?8:6),
+  plan: kupatBlad(),
+  plattPlan: new THREE.PlaneGeometry(1,1),
+  stra: grasstra(),
+  skiva:new THREE.CircleGeometry(0.5, D?18:10)
 };
 
 const _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _e = new THREE.Euler();
@@ -328,12 +370,17 @@ class Bygge {
     const nm  = new THREE.Matrix3().getNormalMatrix(mat4);
     const v   = new THREE.Vector3();
     const col = new THREE.Color(farg);
+    const vv  = new THREE.Vector3();
     for(let i=0;i<pos.length;i+=3){
       v.set(pos[i],pos[i+1],pos[i+2]).applyMatrix4(mat4);
       this.p.push(v.x,v.y,v.z);
+      vv.copy(v);
+      /* liten fläckighet efter läget i världen, så inga ytor blir helt platta */
+      const brus = Math.sin(vv.x*11.7 + vv.y*23.1) * Math.cos(vv.z*17.3 - vv.x*7.1);
+      const f = 1 + brus * 0.075;
       v.set(nor[i],nor[i+1],nor[i+2]).applyMatrix3(nm).normalize();
       this.n.push(v.x,v.y,v.z);
-      this.c.push(col.r,col.g,col.b);
+      this.c.push(col.r*f, col.g*f, col.b*f);
     }
   }
   mesh(mat){
@@ -350,6 +397,8 @@ class Bygge {
 
 const fast  = new Bygge();   // solida saker (hus, möbler, stammar, jord …)
 const lov   = new Bygge();   // löv och kronblad — dubbelsidiga
+const blank = new Bygge();   // zink och koppar — metall
+const glas  = new Bygge();   // fönsterrutor och vatten
 
 /* korta ritverktyg */
 function box(b,x,y,z,w,h,d,f,rx,ry,rz){ b.add(G.box, M(x,y,z,rx,ry,rz,w,h,d), f); }
@@ -360,6 +409,8 @@ function rulloL(b,x,y,z,r,h,f,rx,ry,rz){b.add(G.cylL, M(x,y,z,rx,ry,rz, r*2,h,r*
 function kon(b,x,y,z,r,h,f,rx,ry,rz){  b.add(G.kon, M(x,y,z,rx,ry,rz, r*2,h,r*2), f); }
 function plan(b,x,y,z,w,h,f,rx,ry,rz){ b.add(G.plan, M(x,y,z,rx,ry,rz, w,h,1), f); }
 function skiva(b,x,y,z,r,f,rx,ry,rz){  b.add(G.skiva, M(x,y,z,(rx===undefined?-PI/2:rx),ry,rz, r*2,r*2,1), f); }
+function stam(b,x,y,z,rBas,h,f,rx,ry,rz){ b.add(G.stam, M(x,y,z,rx,ry,rz, rBas*2,h,rBas*2), f); }
+function stra(b,x,y,z,br,h,f,ry,lut){  b.add(G.stra, M(x,y,z,lut||0,ry||0,0, br,h,1), f); }
 
 /* stolpe mellan två punkter (rep, spaljétråd, stag) */
 function stag(b,x1,y1,z1,x2,y2,z2,r,f){
@@ -412,36 +463,11 @@ function markenBygg(){
   /* omgivande landskap, så tomten aldrig slutar i tomma intet */
   const utanfor = new THREE.Mesh(
     new THREE.PlaneGeometry(400, 400),
-    new THREE.MeshLambertMaterial({ color:0x76924e })
+    new THREE.MeshStandardMaterial({ color:0x7d8c5c, roughness:1.0 })
   );
   utanfor.rotation.x = -PI/2; utanfor.position.y = -0.06;
   utanfor.receiveShadow = false;
   scene.add(utanfor);
-
-  /* gräsmattan — ett rutnät med små höjdskillnader och färgvariation */
-  const w = 72, d = 58, seg = 84;
-  const g = new THREE.PlaneGeometry(w, d, seg, seg);
-  g.rotateX(-PI/2);
-  const pos = g.attributes.position;
-  const col = [];
-  const c = new THREE.Color();
-  for(let i=0;i<pos.count;i++){
-    const x = pos.getX(i), z = pos.getZ(i);
-    /* mjuka vågor så mattan inte är spegelblank */
-    const h = Math.sin(x*0.35)*0.045 + Math.cos(z*0.42)*0.04 + Math.sin((x+z)*0.19)*0.05;
-    pos.setY(i, h);
-    /* torrare gräs i kanterna och kring odlingslandet */
-    let t = 0.5 + Math.sin(x*0.7+z*0.5)*0.25 + rnd()*0.3;
-    const torrt = Math.max(0, (Math.abs(z-17.5)<2.8 && x>-9 && x<0 ? 0.35 : 0), (Math.abs(x)>15?0.25:0), (z<-8?0.2:0));
-    c.setHex(F.gras).lerp(new THREE.Color(F.grasLjus), t*0.6).lerp(new THREE.Color(F.grasTorr), torrt);
-    col.push(c.r, c.g, c.b);
-  }
-  g.setAttribute('color', new THREE.Float32BufferAttribute(col,3));
-  g.computeVertexNormals();
-  const mark = new THREE.Mesh(g, new THREE.MeshLambertMaterial({vertexColors:true}));
-  mark.position.set(0, 0, 12);
-  mark.receiveShadow = true;
-  scene.add(mark);
 
   /* grusytor: en tunn skiva strax över gräset */
   function grus(x,z,w,d,farg,rot){ box(fast, x, 0.035, z, w, 0.07, d, farg, 0, rot||0, 0); }
@@ -453,6 +479,46 @@ function markenBygg(){
   grus( 18.7, 23.8, 1.7, 4.4, F.grusGra, 0.02);          // gången med lavendel vid östgaveln
 }
 
+/* Gräsmattan byggs sist, när alla träd och buskar finns — då kan den
+   mörkna i deras skugga och få vägslitage där man går mest. */
+function grasmattanBygg(){
+  const w = 72, d = 58, seg = SMASKARM ? 60 : 96;
+  const g = new THREE.PlaneGeometry(w, d, seg, seg);
+  g.rotateX(-PI/2);
+  const pos = g.attributes.position;
+  const col = [];
+  const c = new THREE.Color(), gras = new THREE.Color(F.gras),
+        ljus = new THREE.Color(F.grasLjus), torr = new THREE.Color(F.grasTorr);
+  for(let i=0;i<pos.count;i++){
+    const x = pos.getX(i), z = pos.getZ(i) + 12;
+    /* mjuka vågor så mattan inte är spegelblank */
+    const h = Math.sin(x*0.35)*0.045 + Math.cos(z*0.42)*0.04 + Math.sin((x+z)*0.19)*0.05
+            + Math.sin(x*1.7 + z*1.3)*0.012;
+    pos.setY(i, h);
+    const t = 0.5 + Math.sin(x*0.7+z*0.5)*0.25 + Math.sin(x*2.3-z*1.9)*0.12;
+    const torrt = Math.max(0,
+      (Math.abs(z-17.5)<2.8 && x>-9 && x<0 ? 0.35 : 0),
+      (Math.abs(x)>15 ? 0.25 : 0));
+    c.copy(gras).lerp(ljus, t*0.6).lerp(torr, torrt);
+    /* skugga under kronorna */
+    let m = 0;
+    for(const sk of skuggor){
+      const dd = Math.hypot(x-sk.x, z-sk.z);
+      if(dd < sk.r) m = Math.max(m, sk.styrka * (1 - dd/sk.r));
+    }
+    c.multiplyScalar(1 - m);
+    col.push(c.r, c.g, c.b);
+  }
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col,3));
+  g.computeVertexNormals();
+  const mark = new THREE.Mesh(g, new THREE.MeshStandardMaterial({
+    vertexColors:true, roughness:0.97, metalness:0.0
+  }));
+  mark.position.set(0, 0, 12);
+  mark.receiveShadow = true;
+  scene.add(mark);
+}
+
 /* ==========================================================================
    4. Växtverkstaden
    ========================================================================== */
@@ -460,9 +526,14 @@ function markenBygg(){
 /* liten grästuva */
 function tuva(x,z,farg,h){
   h = h||0.3;
-  for(let i=0;i<3;i++){
-    const a = rr(0,PI);
-    plan(lov, x+rr(-0.06,0.06), h/2, z+rr(-0.06,0.06), rr(0.1,0.2), h, farg, 0, a, rr(-0.2,0.2));
+  const n = SMASKARM ? 3 : ri(4,6);
+  const c = new THREE.Color(farg);
+  for(let i=0;i<n;i++){
+    const hh = h*rr(0.62,1.3);
+    stra(lov, x+rr(-0.075,0.075), hh/2, z+rr(-0.075,0.075),
+         rr(0.035,0.062), hh,
+         c.clone().offsetHSL(rr(-0.03,0.03), rr(-0.06,0.06), rr(-0.07,0.08)).getHex(),
+         rr(0,TAU), rr(-0.22,0.22));
   }
 }
 function tuvor(x,z,r,antal,farg,h){
@@ -509,6 +580,7 @@ function axblomma(x,z,h,farg,bladfarg,tjock){
 
 /* buske av klot */
 function buske(x,z,r,h,farg,farg2){
+  skuggor.push({x, z, r: r*1.5, styrka: 0.22});
   const n = ri(4,7);
   for(let i=0;i<n;i++){
     const a = rr(0,TAU), d = rr(0,r*0.6);
@@ -536,24 +608,32 @@ function trad(x,z,h,kronR,opts){
   const stamR = opts.stamR || h*0.045;
 
   if(typ === 'dod'){                       /* silvergrå torraka */
-    rullo(fast, x, h*0.42, z, stamR*1.2, h*0.85, F.barkLjus, rr(-0.05,0.05),0,rr(-0.05,0.05));
+    stam(fast, x, h*0.42, z, stamR*1.3, h*0.85, F.barkLjus, rr(-0.05,0.05),0,rr(-0.05,0.05));
     for(let i=0;i<4;i++){
       const a = rr(0,TAU), l = rr(h*0.4,h*0.75);
       stag(fast, x, h*0.62, z, x+Math.cos(a)*l*0.7, h*0.62+l*0.6, z+Math.sin(a)*l*0.7, stamR*0.5, F.barkLjus);
     }
     return;
   }
+  skuggor.push({x, z, r: kronR*1.15, styrka: opts.typ==='dod' ? 0.1 : 0.34});
   if(typ === 'bjork'){
-    rullo(fast, x, h*0.5, z, stamR, h, 0xe6e3d8);
+    stam(fast, x, h*0.5, z, stamR, h, 0xe6e3d8);
     for(let i=0;i<5;i++) box(fast, x+rr(-stamR,stamR), rr(h*0.2,h*0.85), z+stamR*0.9, stamR*1.2, 0.06, 0.02, 0x3a352c);
-    for(let i=0;i<8;i++){
-      const a=rr(0,TAU), d=rr(0,kronR*0.6);
-      klotL(lov, x+Math.cos(a)*d, h*rr(0.72,1.05), z+Math.sin(a)*d, rr(kronR*0.42,kronR*0.62), i%3?0x74963f:0x8aa845);
+    for(let i=0;i<5;i++){
+      const a=rr(0,TAU), l=rr(kronR*0.45,kronR*0.85);
+      stag(fast, x, h*rr(0.5,0.72), z, x+Math.cos(a)*l, h*rr(0.82,0.98), z+Math.sin(a)*l, stamR*0.3, 0xd6d2c4);
+    }
+    const bj = new THREE.Color(0x7fa246);
+    for(let i=0;i<(SMASKARM?9:18);i++){
+      const a=rr(0,TAU), u=Math.pow(rnd(),0.5), d=u*kronR*0.85;
+      klotL(lov, x+Math.cos(a)*d, h*(0.86+rr(-0.11,0.14)), z+Math.sin(a)*d,
+            kronR*(0.40-u*0.14)*rr(0.8,1.2),
+            bj.clone().offsetHSL(rr(-0.03,0.03), rr(-0.1,0.05), rr(-0.09,0.12)).getHex());
     }
     return;
   }
   if(typ === 'pil'){                       /* hängpil / silverpil */
-    rullo(fast, x, h*0.34, z, stamR*1.1, h*0.7, bark);
+    stam(fast, x, h*0.34, z, stamR*1.15, h*0.7, bark);
     for(let i=0;i<10;i++){
       const a=rr(0,TAU), d=rr(kronR*0.15,kronR*0.8);
       klotL(lov, x+Math.cos(a)*d, rr(h*0.62,h*1.0), z+Math.sin(a)*d, rr(kronR*0.34,kronR*0.55), lovf);
@@ -567,17 +647,22 @@ function trad(x,z,h,kronR,opts){
     return;
   }
   /* vanligt lövträd / äppelträd */
-  rullo(fast, x, h*0.3, z, stamR, h*0.62, bark, rr(-0.04,0.04),0,rr(-0.04,0.04));
+  stam(fast, x, h*0.3, z, stamR*1.12, h*0.62, bark, rr(-0.04,0.04),0,rr(-0.04,0.04));
   const grenar = opts.grenar || 4;
   for(let i=0;i<grenar;i++){
     const a = i/grenar*TAU + rr(-0.4,0.4), l = rr(kronR*0.55, kronR*0.95);
     stag(fast, x, h*0.5, z, x+Math.cos(a)*l, h*rr(0.62,0.8), z+Math.sin(a)*l, stamR*0.55, bark);
   }
-  const n = opts.klot || 9;
+  const n = opts.klot || (SMASKARM ? 12 : 24);
+  const bas = new THREE.Color(lovf);
   for(let i=0;i<n;i++){
-    const a=rr(0,TAU), d=rr(0,kronR*0.75);
-    klotL(lov, x+Math.cos(a)*d, rr(h*0.66,h*1.02), z+Math.sin(a)*d, rr(kronR*0.38,kronR*0.58),
-          i%4===0 ? F.lovLjus : lovf);
+    const a = rr(0,TAU);
+    const u = Math.pow(rnd(), 0.5);                 // tätare ut mot kanten
+    const d = u * kronR * 0.86;
+    const y = h*0.80 + Math.cos(u*1.5)*h*0.15 + rr(-0.1,0.1)*h;
+    const r = kronR * (0.40 - u*0.15) * rr(0.82,1.22);
+    klotL(lov, x+Math.cos(a)*d, y, z+Math.sin(a)*d, r,
+          bas.clone().offsetHSL(rr(-0.035,0.035), rr(-0.11,0.06), rr(-0.1,0.11)).getHex());
   }
   if(opts.frukt){
     for(let i=0;i<(opts.frukt);i++){
@@ -590,12 +675,19 @@ function trad(x,z,h,kronR,opts){
 /* häck */
 function hack(x1,z1,x2,z2,h,bredd){
   const len = Math.hypot(x2-x1, z2-z1);
-  const steg = Math.max(2, Math.round(len/0.55));
+  const vink = Math.atan2(z2-z1, x2-x1);
+  /* en klippt häck är en vägg, inte en rad bollar */
+  box(lov, (x1+x2)/2, h*0.46, (z1+z2)/2, len, h*0.92, bredd*0.9, F.hack, 0, -vink, 0);
+  /* ojämn, luddig ovansida och sidor */
+  const bas = new THREE.Color(F.hack);
+  const steg = Math.max(2, Math.round(len/(SMASKARM ? 0.75 : 0.42)));
   for(let i=0;i<=steg;i++){
     const t = i/steg;
     const x = x1+(x2-x1)*t, z = z1+(z2-z1)*t;
-    klotL(lov, x, h*rr(0.55,0.72), z, rr(bredd*0.52,bredd*0.66), i%3===0?F.lov:F.hack);
-    klotL(lov, x+rr(-0.1,0.1), h*rr(0.28,0.42), z+rr(-0.1,0.1), bredd*0.6, F.hack);
+    const f = bas.clone().offsetHSL(rr(-0.03,0.03), rr(-0.08,0.06), rr(-0.07,0.1)).getHex();
+    klotL(lov, x+rr(-0.08,0.08), h*rr(0.86,0.98), z+rr(-0.08,0.08), rr(bredd*0.4,bredd*0.56), f);
+    if(i%2===0) klotL(lov, x+Math.sin(vink)*bredd*0.42, h*rr(0.45,0.75), z-Math.cos(vink)*bredd*0.42, bredd*0.34, f);
+    if(i%2===1) klotL(lov, x-Math.sin(vink)*bredd*0.42, h*rr(0.45,0.75), z+Math.cos(vink)*bredd*0.42, bredd*0.34, f);
   }
 }
 
@@ -731,7 +823,7 @@ function husetBygg(){
     const ry = (mot==='x') ? 0 : PI/2;
     const dx = (mot==='x') ? ut*0.05 : 0, dz = (mot==='x') ? 0 : ut*0.05;
     box(fast, x,y,z, 0.08, h+0.2, w+0.2, F.husFoder, 0, ry, 0);        // foder
-    box(fast, x+dx*0.7, y, z+dz*0.7, 0.05, h, w, 0x4d6166, 0, ry, 0);  // ruta
+    box(glas, x+dx*0.7, y, z+dz*0.7, 0.05, h, w, 0x4d6166, 0, ry, 0);  // ruta
     box(fast, x+dx, y, z+dz, 0.03, h, 0.05, F.husFoder, 0, ry, 0);     // mittpost
     box(fast, x+dx, y, z+dz, 0.03, 0.05, w, F.husFoder, 0, ry, 0);     // tvärpost
     box(fast, x+dx*0.5, y-h/2-0.1, z+dz*0.5, 0.24, 0.06, w+0.3, 0x8b8f88, 0, ry, 0);
@@ -816,7 +908,7 @@ function husetBygg(){
   /* slangvinda och vattenkanna vid trappan */
   rullo(fast, px-1.5, 0.45, pz-1.9, 0.24, 0.16, 0x3f6b8a, 0, 0, PI/2);
   box(fast, px-1.5, 0.2, pz-1.9, 0.06, 0.4, 0.06, 0x8a8a84);
-  rullo(fast, px-1.2, 0.16, pz-2.4, 0.13, 0.3, F.zink);
+  rullo(blank, px-1.2, 0.16, pz-2.4, 0.13, 0.3, F.zink);
 
   N('Huset','Trähus från tjugotalet','hus','🏡', hx, takFot+takH+1.0, hz,
     'Ett långt, lågt trähus i gulvitt med grågröna foder och valmat tegeltak. Två skorstenar, frontespis åt både gatan och trädgården, burspråk mot söder och granitsockel hela vägen runt.',
@@ -859,7 +951,7 @@ function husetBygg(){
   box(fast, ost-1.15, sockel+1.1, hz-langd/2-0.04, 1.35, 2.05, 0.08, F.husFoder);
   for(const sd of [-1,1]){
     box(fast, ost-1.15+sd*0.31, sockel+1.15, hz-langd/2-0.07, 0.5, 1.85, 0.04, 0x8a6a3a);
-    box(fast, ost-1.15+sd*0.31, sockel+1.45, hz-langd/2-0.1, 0.36, 1.15, 0.03, 0x4d6166);
+    box(glas, ost-1.15+sd*0.31, sockel+1.45, hz-langd/2-0.1, 0.36, 1.15, 0.03, 0x4d6166);
   }
   box(fast, ost-1.15, sockel+0.02, hz-langd/2-0.3, 1.5, 0.12, 0.5, 0x9a958c);   // tröskelsten
 
@@ -868,7 +960,7 @@ function husetBygg(){
   box(fast, ost+0.28, sockel+1.25, bz, 0.62, 1.7, 2.2, F.husVagg);
   box(fast, ost+0.32, sockel+2.16, bz, 0.72, 0.09, 2.36, 0x7a8a92);
   for(const sd of [-1,0,1])
-    box(fast, ost+0.6, sockel+1.35, bz+sd*0.7, 0.05, 1.1, 0.55, 0x4d6166);
+    box(glas, ost+0.6, sockel+1.35, bz+sd*0.7, 0.05, 1.1, 0.55, 0x4d6166);
   for(const sd of [-1.05,-0.35,0.35,1.05])
     box(fast, ost+0.6, sockel+1.35, bz+sd, 0.06, 1.2, 0.07, F.husFoder);
   box(fast, ost+0.6, sockel+0.72, bz, 0.07, 0.09, 2.25, F.husFoder);
@@ -884,8 +976,8 @@ function husetBygg(){
   for(const sd of [-1,1])
     box(fast, ost-0.3, takFot+1.58, fs+sd*0.5, 1.7, 0.09, 1.25, F.husTak, sd*0.66, 0, 0);
   /* det stora glasade partiet med snedställd överkant */
-  box(fast, ost+0.42, takFot+0.7, fs, 0.06, 1.05, 1.3, 0x39474a);
-  box(fast, ost+0.44, takFot+1.45, fs, 0.05, 0.5, 0.7, 0x39474a);
+  box(glas, ost+0.42, takFot+0.7, fs, 0.06, 1.05, 1.3, 0x39474a);
+  box(glas, ost+0.44, takFot+1.45, fs, 0.05, 0.5, 0.7, 0x39474a);
   box(fast, ost+0.46, takFot+0.7, fs, 0.04, 1.1, 0.08, F.husFoder);
   box(fast, ost+0.46, takFot+0.72, fs, 0.04, 0.07, 1.32, F.husFoder);
 }
@@ -1107,18 +1199,18 @@ function utduschBygg(){
     box(fast, p[0], 0.95, p[1], 0.1, 1.9, 0.1, F.tra);
   box(fast, 0.3, 1.92, -0.05, 0.16, 0.14, 1.75, F.traMork);
   /* kopparduschen, bultad i husväggen */
-  rullo(fast, -0.5, 1.3, 0.25, 0.025, 2.4, F.koppar);
-  stag(fast, -0.5, 2.45, 0.25, -0.05, 2.5, 0.25, 0.025, F.koppar);
-  rullo(fast, 0.0, 2.35, 0.25, 0.11, 0.06, F.koppar);
+  rullo(blank, -0.5, 1.3, 0.25, 0.025, 2.4, F.koppar);
+  stag(blank, -0.5, 2.45, 0.25, -0.05, 2.5, 0.25, 0.025, F.koppar);
+  rullo(blank, 0.0, 2.35, 0.25, 0.11, 0.06, F.koppar);
   N('Utduschen','Dusch under bar himmel','hus','🚿', 0.3, 2.7, 0,
     'Kopparduschen vid husets sydosthörn, avskärmad med vassmattor och med trall under fötterna. Runt hörnet ligger grusplatsen.',
     'Sydosthörnet, på grusremsan');
 
   /* zinkbadkar, zinktråg och det rostiga växtstället västerut längs väggen */
-  box(fast, 0.45, 0.3, 2.7, 0.7, 0.6, 1.55, F.zink, 0, 0.1, 0);
+  box(blank, 0.45, 0.3, 2.7, 0.7, 0.6, 1.55, F.zink, 0, 0.1, 0);
   box(fast, 0.45, 0.58, 2.7, 0.55, 0.1, 1.4, 0x8d9295, 0, 0.1, 0);
-  klot(fast, 0.45, 0.42, 3.45, 0.36, 0.42, 0.28, F.zink);
-  box(fast, 0.35, 0.22, 4.55, 0.62, 0.44, 2.4, F.zink, 0, 0.04, 0);
+  klot(blank, 0.45, 0.42, 3.45, 0.36, 0.42, 0.28, F.zink);
+  box(blank, 0.35, 0.22, 4.55, 0.62, 0.44, 2.4, F.zink, 0, 0.04, 0);
   box(fast, 0.35, 0.42, 4.55, 0.48, 0.06, 2.25, 0x8d9295, 0, 0.04, 0);
   N('Zinkbadkaret','Gammalt plåtbadkar','hus','🛁', 0.45, 0.95, 2.7,
     'Det gamla zinkbadkaret och det långa zinktråget på grusremsan längs husets södra vägg, ett par meter väster om duschen.',
@@ -1286,10 +1378,18 @@ function repgungaBygg(){
 /* poolen med långsidan mot tältet, boden bortom med dörrgaveln mot väster */
 function poolOchBodBygg(){
   const x=7.0, z=15.6;
-  for(let i=0;i<2;i++)
-    box(fast, x, 0.2+i*0.34, z, 2.2-i*0.15, 0.36, 3.4-i*0.15, i? F.poolVit : F.poolBla);
-  box(fast, x, 0.45, z, 1.95, 0.12, 3.1, F.vatten);
-  box(fast, x-0.3, 0.34, z+0.5, 0.5, 0.06, 0.3, 0x2f6b8a);              // håven i vattnet
+  /* två vulster runt kanten och en vattenyta emellan — inte en solid låda */
+  const pb = 2.2, pl = 3.4, kr = 0.2;
+  for(let v=0; v<2; v++){
+    const y = 0.17 + v*0.3, f = v ? F.poolVit : F.poolBla;
+    box(fast, x, y, z-pl/2+kr/2, pb, 0.32, kr, f);
+    box(fast, x, y, z+pl/2-kr/2, pb, 0.32, kr, f);
+    box(fast, x-pb/2+kr/2, y, z, kr, 0.32, pl-kr*1.9, f);
+    box(fast, x+pb/2-kr/2, y, z, kr, 0.32, pl-kr*1.9, f);
+  }
+  box(fast, x, 0.03, z, pb-kr*2, 0.06, pl-kr*2, 0xd8e4ea);              // ljus botten
+  box(glas, x, 0.33, z, pb-kr*2.1, 0.1, pl-kr*2.1, F.vatten);           // vattenytan
+  box(fast, x-0.3, 0.4, z+0.5, 0.5, 0.05, 0.3, 0x2f6b8a);               // håven i vattnet
   box(fast, x-1.4, 0.12, z+0.7, 0.36, 0.24, 0.28, 0xf0f0ee);            // vita plastpallen
   /* trädgårdsslangen som ringlar över gräset från huset */
   stag(fast, -1.2, 0.03, 13.4, 1.2, 0.03, 13.9, 0.024, 0x2e6b4f);
@@ -1309,7 +1409,7 @@ function poolOchBodBygg(){
   box(fast, bx-1.42, 0.95, bz+0.4, 0.08, 1.9, 0.85, 0xc6c1b0);          // spegeldörren
   box(fast, bx-1.46, 1.3, bz+0.4, 0.03, 0.5, 0.55, 0xb5b0a0);
   box(fast, bx-1.46, 0.6, bz+0.4, 0.03, 0.6, 0.55, 0xb5b0a0);
-  box(fast, bx-1.43, 1.45, bz-0.55, 0.06, 0.55, 0.5, 0x3d4a44);         // spröjsat fönster
+  box(glas, bx-1.43, 1.45, bz-0.55, 0.06, 0.55, 0.5, 0x3d4a44);         // spröjsat fönster
   box(fast, bx-1.46, 1.45, bz-0.55, 0.02, 0.57, 0.05, 0xc9c4b4);
   box(fast, bx-1.46, 1.45, bz-0.55, 0.02, 0.05, 0.52, 0xc9c4b4);
   box(fast, bx-1.6, 0.05, bz+0.4, 0.5, 0.1, 1.0, F.traGra);             // trampsten
@@ -1369,7 +1469,7 @@ function vaxthusBygg(){
   box(fast, x1-0.05, 1.32, z, 0.07, 1.9, 0.9, 0xd2cec0);
   box(fast, x1-0.09, 1.32, z, 0.03, 1.7, 0.74, 0xbfbcae);
   box(fast, x1-0.11, 1.15, z-0.36, 0.05, 0.09, 0.09, 0x9a9384);     // handtag
-  box(fast, x1-0.06, 1.42, z+1.05, 0.06, 0.75, 0.75, 0x9fb3b0);     // spröjsat fönster
+  box(glas, x1-0.06, 1.42, z+1.05, 0.06, 0.75, 0.75, 0x9fb3b0);     // spröjsat fönster
   box(fast, x1-0.09, 1.42, z+1.05, 0.02, 0.78, 0.05, 0xc9c4b4);
   box(fast, x1-0.09, 1.42, z+1.05, 0.02, 0.05, 0.78, 0xc9c4b4);
   box(fast, x1-0.07, 2.28, z+1.05, 0.04, 0.34, 0.34, F.rost);       // rostskylten
@@ -1779,7 +1879,7 @@ function barhornanBygg(){
     'Den silvergrå döda stammen som fått stå kvar i brynet nordost om tältet — full av hål där insekter och fåglar bor.',
     'Mellan gräsmattan och växthuset');
   for(let i=0;i<3;i++) rullo(fast, 5.2+rr(-0.7,0.7), 0.1, 9.0+rr(-0.6,0.6), rr(0.07,0.11), 0.16, 0xb5714f);
-  rullo(fast, 4.6, 0.14, 9.5, 0.05, 0.22, F.zink);
+  rullo(blank, 4.6, 0.14, 9.5, 0.05, 0.22, F.zink);
   rullo(fast, 3.9, 0.75, 9.8, 0.035, 1.5, 0x6b5945);
   box(fast, 3.9, 1.52, 9.8, 0.42, 0.05, 0.36, F.traMork);
   kon(fast, 3.9, 1.72, 9.8, 0.3, 0.26, 0x8a5a3a);
@@ -1867,7 +1967,7 @@ function granserBygg(){
   box(fast, 24.6, 1.8, 24.0, 3.2, 3.6, 7.4, F.ladaRod);
   for(const sd of [-1,1]) box(fast, 24.6+sd*0.9, 4.2, 24.0, 2.15, 0.14, 7.8, 0x6b4a3a, 0, 0, sd*0.62);
   box(fast, 24.6, 4.65, 24.0, 0.16, 0.12, 7.6, 0x5a3f30);
-  box(fast, 22.96, 2.3, 22.6, 0.06, 0.7, 0.6, 0x39474a);            // fönster med ljus karm
+  box(glas, 22.96, 2.3, 22.6, 0.06, 0.7, 0.6, 0x39474a);            // fönster med ljus karm
   box(fast, 22.94, 2.3, 22.6, 0.04, 0.82, 0.72, 0xd8cfae);
   box(fast, 22.97, 1.1, 25.2, 0.06, 2.2, 1.3, 0x7a3226);            // plankport
   box(fast, 23.0, 3.45, 24.0, 0.1, 0.14, 7.5, 0x8a8f92);            // hängränna
@@ -1892,7 +1992,7 @@ function granserBygg(){
     const t=i/6;
     box(fast, -25.8, 4.4+t*1.5, 11.0, 5.6*(1-t*0.92), 0.28, 6.6, 0xcfc2b0);
   }
-  box(fast, -23.0, 4.9, 11.0, 0.1, 0.7, 0.55, 0x39474a);            // gavelfönster i nock
+  box(glas, -23.0, 4.9, 11.0, 0.1, 0.7, 0.55, 0x39474a);            // gavelfönster i nock
   box(fast, -23.6, 1.1, 14.6, 3.2, 2.2, 3.6, 0x66665f);             // garaget, platt tak
   /* grannens rosa blommor som skymtar genom häcken */
   for(let i=0;i<6;i++) klotL(lov, -20.7+rr(-0.3,0.3), rr(0.7,1.3), 15.0+rr(0,2.0), 0.09, F.rosa);
@@ -1941,7 +2041,7 @@ function angsblommorBygg(){
     if(x > 9.6 && x < 18.4 && z > 21.2 && z < 26.1) return false;    // växthuset
     return true;
   }
-  for(let i=0;i<420;i++){
+  for(let i=0;i<(SMASKARM?520:1150);i++){
     const x = rr(TOMT.x1, TOMT.x2), z = rr(0, TOMT.djupO);
     if(!fritt(x,z)) continue;
     tuva(x, z, rnd()<0.25 ? F.grasTorr : F.grasLjus, rr(0.14,0.3));
@@ -1968,6 +2068,7 @@ function angsblommorBygg(){
    6. Bygg världen
    ========================================================================== */
 const gungor = [];      // saker som svajar
+const skuggor = [];     // trädkronor som mörknar gräset under sig
 
 /* Tomtens form enligt förrättningskartan: knappt 40 m längs gatan i norr,
    grundare i väster och djupare i öster, drygt 1000 kvadratmeter.
@@ -2013,11 +2114,37 @@ platsNollstall();                          repgungaBygg();
 platsNollstall();
 granserBygg();
 angsblommorBygg();
+grasmattanBygg();
 
-const matFast = new THREE.MeshLambertMaterial({ vertexColors:true });
-const matLov  = new THREE.MeshLambertMaterial({ vertexColors:true, side:THREE.DoubleSide, alphaTest:0 });
+const matFast = new THREE.MeshStandardMaterial({ vertexColors:true, roughness:0.92, metalness:0.02 });
+const matLov  = new THREE.MeshStandardMaterial({ vertexColors:true, roughness:0.78, metalness:0.0,
+                                                 side:THREE.DoubleSide });
+const matBlank= new THREE.MeshStandardMaterial({ vertexColors:true, roughness:0.26, metalness:0.78 });
+const matGlas = new THREE.MeshStandardMaterial({ vertexColors:true, roughness:0.06, metalness:0.0,
+                                                 transparent:true, opacity:0.72 });
+
+/* Vinden får löv och blommor att vaja. Positionerna i den hopslagna
+   geometrin är redan världskoordinater, så de duger direkt som brusfrö,
+   och höjden avgör hur mycket toppen rör sig. */
+let vindShader = null;
+matLov.onBeforeCompile = sh => {
+  sh.uniforms.tid = { value: 0 };
+  sh.vertexShader = 'uniform float tid;\n' + sh.vertexShader.replace(
+    '#include <begin_vertex>',
+    `#include <begin_vertex>
+     float hojd = clamp(transformed.y * 0.32, 0.0, 1.6);
+     float bris = sin(tid * 1.5 + transformed.x * 0.55 + transformed.z * 0.4)
+                + 0.4 * sin(tid * 3.1 + transformed.x * 1.7);
+     transformed.x += bris * hojd * 0.045;
+     transformed.z += cos(tid * 1.25 + transformed.x * 0.42) * hojd * 0.035;`
+  );
+  vindShader = sh;
+};
+
 scene.add(fast.mesh(matFast));
 scene.add(lov.mesh(matLov));
+scene.add(blank.mesh(matBlank));
+scene.add(glas.mesh(matGlas));
 
 /* fjärilar */
 const fjarilar = [];
@@ -2025,7 +2152,7 @@ const fjarilar = [];
   const fb = new Bygge();
   plan(fb, -0.05, 0, 0, 0.09, 0.07, 0xf2e6a0, 0, 0.5, 0);
   plan(fb,  0.05, 0, 0, 0.09, 0.07, 0xf2e6a0, 0, -0.5, 0);
-  const fg = fb.mesh(new THREE.MeshLambertMaterial({vertexColors:true, side:THREE.DoubleSide}));
+  const fg = fb.mesh(new THREE.MeshStandardMaterial({vertexColors:true, roughness:0.7, side:THREE.DoubleSide}));
   for(let i=0;i<8;i++){
     const f = fg.clone();
     f.userData = { c:new THREE.Vector3(rr(-8,14), rr(0.6,2.2), rr(-9,9)), r:rr(1.2,3.0), fas:rr(0,TAU), fart:rr(0.4,0.9) };
@@ -2038,16 +2165,33 @@ const fjarilar = [];
    ========================================================================== */
 const himmelMat = new THREE.ShaderMaterial({
   side:THREE.BackSide, depthWrite:false,
-  uniforms:{ topp:{value:new THREE.Color()}, botten:{value:new THREE.Color()} },
+  uniforms:{
+    topp:{value:new THREE.Color()}, botten:{value:new THREE.Color()},
+    solRikt:{value:new THREE.Vector3(0,1,0)}, solFarg:{value:new THREE.Color()}
+  },
   vertexShader:'varying vec3 vP; void main(){ vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
-  fragmentShader:'uniform vec3 topp; uniform vec3 botten; varying vec3 vP;'+
-    'void main(){ float h=normalize(vP).y; gl_FragColor=vec4(mix(botten,topp,clamp(h*1.5+0.28,0.0,1.0)),1.0); }'
+  fragmentShader:`
+    uniform vec3 topp; uniform vec3 botten; uniform vec3 solRikt; uniform vec3 solFarg;
+    varying vec3 vP;
+    void main(){
+      vec3 r = normalize(vP);
+      vec3 f = mix(botten, topp, clamp(r.y * 1.35 + 0.24, 0.0, 1.0));
+      /* dis närmast horisonten */
+      f = mix(f, botten * 1.04, pow(1.0 - clamp(abs(r.y) * 3.2, 0.0, 1.0), 2.5) * 0.5);
+      /* solglöd och en mjuk solskiva */
+      float d = max(0.0, dot(r, normalize(solRikt)));
+      f += solFarg * pow(d, 5.0) * 0.16;
+      f += solFarg * pow(d, 90.0) * 0.7;
+      f += solFarg * smoothstep(0.9986, 0.9994, d) * 1.4;
+      gl_FragColor = vec4(f, 1.0);
+    }`
 });
-scene.add(new THREE.Mesh(new THREE.SphereGeometry(220, 24, 14), himmelMat));
+scene.add(new THREE.Mesh(new THREE.SphereGeometry(220, 32, 20), himmelMat));
 
 const sol  = new THREE.DirectionalLight(0xffffff, 1.1);
 sol.castShadow = true;
-sol.shadow.mapSize.set(2048, 2048);
+sol.shadow.mapSize.set(3072, 3072);
+sol.shadow.radius = 2.2;
 const sc = sol.shadow.camera;
 sc.left=-26; sc.right=26; sc.top=26; sc.bottom=-26; sc.near=1; sc.far=80;
 sol.shadow.bias = -0.0012; sol.shadow.normalBias = 0.03;
@@ -2056,7 +2200,27 @@ scene.add(sol); scene.add(sol.target);
 const himmelljus = new THREE.HemisphereLight(0xcfe4f2, 0x5e6b3a, 0.55);
 scene.add(himmelljus);
 /* en gnutta neutralt fyllnadsljus, så skuggsidorna inte blir sotiga */
-scene.add(new THREE.AmbientLight(0xffffff, 0.26));
+scene.add(new THREE.AmbientLight(0xffffff, 0.16));
+
+/* Himlen får också lysa upp världen som omgivning, så blanka ytor som zink
+   och vatten speglar något i stället för att bli döda färgklumpar. */
+const pmrem = new THREE.PMREMGenerator(renderer);
+pmrem.compileEquirectangularShader();
+let omgivning = null;
+function uppdateraOmgivning(){
+  try {
+    const hjalp = new THREE.Scene();
+    hjalp.add(new THREE.Mesh(new THREE.SphereGeometry(10, 24, 16), himmelMat.clone()));
+    const ny = pmrem.fromScene(hjalp, 0.02);
+    if(omgivning) omgivning.dispose();
+    omgivning = ny.texture;
+    scene.environment = omgivning;
+    matFast.envMapIntensity = 0.35;
+    matLov.envMapIntensity = 0.3;
+    matBlank.envMapIntensity = 1.0;
+    matGlas.envMapIntensity = 1.2;
+  } catch(e){ /* omgivningsljus är en bonus, inte ett krav */ }
+}
 scene.fog = new THREE.Fog(0xcfe4f2, 34, 150);
 
 const TIDER = [
@@ -2076,7 +2240,10 @@ function sattTid(i){
   sol.color.setHex(t.solF); sol.intensity = t.solI;
   himmelljus.color.setHex(t.hemA); himmelljus.groundColor.setHex(t.hemB); himmelljus.intensity = t.hemI;
   scene.fog.color.setHex(t.dimma); scene.fog.near = t.dimmaN; scene.fog.far = t.dimmaN*4.2;
+  himmelMat.uniforms.solRikt.value.set(t.solPos[0], t.solPos[1], t.solPos[2]).normalize();
+  himmelMat.uniforms.solFarg.value.setHex(t.solF);
   document.getElementById('bTid').textContent = t.namn;
+  uppdateraOmgivning();
 }
 sattTid(2);
 
@@ -2227,16 +2394,22 @@ document.getElementById('pStang').onclick = stangPanel;
    ========================================================================== */
 const OGON = 1.62;
 const kam = {
-  pos: new THREE.Vector3(2.2, OGON, 17.8),
-  gir: 0.85,           // vänster/höger
+  pos: new THREE.Vector3(8.0, OGON, 11.5),
+  gir: 1.35,           // vänster/höger
   lut: -0.04,          // upp/ner
   flyg: false
 };
+/* Farten byggs upp och ebbar ut i stället för att slås av och på, så att
+   gå och svänga känns som att röra sig och inte som att hoppa mellan rutor. */
+const ror = { fart: new THREE.Vector3(), svang: 0, steg: 0, lyft: 0 };
+const GANG = 3.0, SPRING = 6.2, ACCEL = 9.0, BROMS = 8.0;
+const SVANG = 1.9, SVANGACCEL = 7.0, SVANGBROMS = 9.0;
 const tang = {};
 addEventListener('keydown', e => {
   tang[e.code] = true;
-  if(e.code === 'KeyF'){ kam.flyg = !kam.flyg; hint(kam.flyg ? 'Flygläge på — Q och E för upp och ner' : 'Flygläge av'); }
+  if(e.code === 'KeyF'){ kam.flyg = !kam.flyg; hint(kam.flyg ? 'Flygläge på — du flyger dit du tittar' : 'Flygläge av'); }
   if(e.code === 'KeyL'){ vaxlaEtiketter(); }
+  if(e.code === 'Space'){ kam.lut = 0; hint('Blicken rak fram igen'); }
   if(e.code === 'Escape'){ doljKort(); stangPanel(); document.getElementById('hjalp').classList.remove('syns'); stoppaTur(); }
   if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault();
   stoppaTur();
@@ -2256,8 +2429,8 @@ duk.addEventListener('pointermove', e => {
   const dx = e.clientX - dragX, dy = e.clientY - dragY;
   dragX = e.clientX; dragY = e.clientY;
   dragTot += Math.abs(dx) + Math.abs(dy);
-  kam.gir -= dx * 0.0032;
-  kam.lut = Math.max(-1.35, Math.min(1.2, kam.lut - dy * 0.0028));
+  kam.gir -= dx * 0.0026;
+  kam.lut = Math.max(-1.1, Math.min(1.0, kam.lut - dy * 0.0022));
   stoppaTur();
 });
 duk.addEventListener('pointerup', e => {
@@ -2308,36 +2481,71 @@ function iHinder(x,z){
 function begransa(){
   kam.pos.x = Math.max(TOMT.x1-1.2, Math.min(TOMT.x2-0.4, kam.pos.x));
   kam.pos.z = Math.max(-6.2, Math.min(sodraGransen(kam.pos.x)-0.7, kam.pos.z));
-  if(!kam.flyg) kam.pos.y = OGON;
-  else kam.pos.y = Math.max(0.4, Math.min(26, kam.pos.y));
+  if(kam.flyg) kam.pos.y = Math.max(0.5, Math.min(26, kam.pos.y));
 }
 
+/* W och S går framåt och bakåt, A och D SVÄNGER — som att styra sig själv
+   och inte som att glida i sidled. Q och E kliver i sidled för den som vill. */
 function styr(dt){
-  let fram = 0, sid = 0, upp = 0;
-  if(tang.KeyW || tang.ArrowUp)    fram += 1;
-  if(tang.KeyS || tang.ArrowDown)  fram -= 1;
-  if(tang.KeyA || tang.ArrowLeft)  sid  -= 1;
-  if(tang.KeyD || tang.ArrowRight) sid  += 1;
-  if(tang.KeyQ) upp -= 1;
-  if(tang.KeyE || tang.Space) upp += 1;
-  if(spak.aktiv){ fram -= spak.y; sid += spak.x; }
+  let fram = 0, svang = 0, sid = 0, upp = 0;
+  if(tang.KeyW || tang.ArrowUp)    fram  += 1;
+  if(tang.KeyS || tang.ArrowDown)  fram  -= 1;
+  if(tang.KeyA || tang.ArrowLeft)  svang += 1;
+  if(tang.KeyD || tang.ArrowRight) svang -= 1;
+  if(tang.KeyQ) sid -= 1;
+  if(tang.KeyE) sid += 1;
+  if(tang.KeyR) upp += 1;
+  if(tang.KeyC) upp -= 1;
+  if(spak.aktiv){ fram -= spak.y; svang -= spak.x; }
 
-  if(!fram && !sid && !upp) return;
-  const fart = (tang.ShiftLeft || tang.ShiftRight ? 7.2 : 3.1) * dt;
+  /* svängen accelererar mjukt och rullar ut */
+  const malSvang = Math.max(-1, Math.min(1, svang)) * SVANG;
+  ror.svang += (malSvang - ror.svang) * Math.min(1, dt * (svang ? SVANGACCEL : SVANGBROMS));
+  kam.gir += ror.svang * dt;
+
+  /* farten likaså */
+  const springer = tang.ShiftLeft || tang.ShiftRight;
+  const topp = springer ? SPRING : GANG;
+  const langd = Math.hypot(fram, sid) || 1;
+  const f = Math.max(-1, Math.min(1, fram)) / (langd > 1 ? langd : 1);
+  const g = Math.max(-1, Math.min(1, sid))  / (langd > 1 ? langd : 1);
   const sinG = Math.sin(kam.gir), cosG = Math.cos(kam.gir);
-  const nx = kam.pos.x + (-sinG*fram + cosG*sid) * fart;
-  const nz = kam.pos.z + (-cosG*fram - sinG*sid) * fart;
-  if(!iHinder(nx, kam.pos.z)) kam.pos.x = nx;
-  if(!iHinder(kam.pos.x, nz)) kam.pos.z = nz;
-  if(kam.flyg) kam.pos.y += upp * fart;
+  const lut = kam.flyg ? Math.sin(kam.lut) : 0;
+  const platt = kam.flyg ? Math.cos(kam.lut) : 1;
+  const malX = (-sinG*f*platt + cosG*g) * topp;
+  const malZ = (-cosG*f*platt - sinG*g) * topp;
+  const malY = kam.flyg ? (f*lut*topp + upp*topp*0.8) : 0;
+  const k = Math.min(1, dt * ((fram||sid||upp) ? ACCEL : BROMS));
+  ror.fart.x += (malX - ror.fart.x) * k;
+  ror.fart.z += (malZ - ror.fart.z) * k;
+  ror.lyft   += (malY - ror.lyft)   * k;
+  if(Math.abs(ror.fart.x) < 0.004) ror.fart.x = 0;
+  if(Math.abs(ror.fart.z) < 0.004) ror.fart.z = 0;
+  if(Math.abs(ror.lyft)   < 0.004) ror.lyft   = 0;
+
+  /* flytta, med väggarna prövade var för sig så man glider längs dem */
+  const nx = kam.pos.x + ror.fart.x * dt;
+  const nz = kam.pos.z + ror.fart.z * dt;
+  if(!iHinder(nx, kam.pos.z)) kam.pos.x = nx; else ror.fart.x = 0;
+  if(!iHinder(kam.pos.x, nz)) kam.pos.z = nz; else ror.fart.z = 0;
+  if(kam.flyg) kam.pos.y += ror.lyft * dt;
+
+  /* blicken rätar upp sig långsamt av sig själv när man går rakt fram */
+  if(fram > 0 && !drar && !kam.flyg) kam.lut += (0 - kam.lut) * Math.min(1, dt * 0.9);
+
+  /* liten vaggning i steget */
+  const hast = Math.hypot(ror.fart.x, ror.fart.z);
+  if(!kam.flyg && hast > 0.2) ror.steg += dt * (2.2 + hast * 0.9);
+  else ror.steg += (0 - (ror.steg % TAU)) * 0;
   begransa();
+  if(!kam.flyg) kam.pos.y = OGON + Math.sin(ror.steg * 2) * 0.026 * Math.min(1, hast/2.5);
 }
 
 /* ==========================================================================
    11. Rundtur
    ========================================================================== */
 const TUR = [
-  { txt:'Vi börjar på gräsmattan',    pos:[2.2,1.62,17.8],  se:[-6.0,2.2,11.0] },
+  { txt:'Vi börjar på gräsmattan',    pos:[8.0,1.62,11.5],  se:[-4.5,2.2,8.4] },
   { txt:'Grusplatsen och verandan',   pos:[3.2,1.62,10.6],  se:[-0.8,1.6,7.6] },
   { txt:'Ut genom grinden till gatan',pos:[-6.9,1.62,2.6],  se:[-6.9,1.2,-3.5] },
   { txt:'Framsidan och farstukvisten',pos:[-7.2,1.62,1.2],  se:[-7.8,2.2,5.4] },
@@ -2365,6 +2573,7 @@ function startaTur(){
 }
 function stoppaTur(){
   if(!tur) return;
+  ror.fart.set(0,0,0); ror.svang = 0; ror.lyft = 0;
   tur = null;
   document.getElementById('bTur').textContent = 'Rundtur';
 }
@@ -2452,7 +2661,7 @@ addEventListener('resize', () => {
 const klocka = new THREE.Clock();
 function rita(){
   requestAnimationFrame(rita);
-  const dt = Math.min(0.05, klocka.getDelta());
+  const dt = Math.min(0.1, klocka.getDelta());   // taket hindrar genomtrampning av väggar vid hack
   const t  = klocka.getElapsedTime();
 
   styr(dt);
@@ -2466,6 +2675,8 @@ function rita(){
   /* solens skuggkamera följer med */
   sol.target.position.set(kam.pos.x, 0, kam.pos.z);
   sol.position.set(kam.pos.x + TIDER[tidIx].solPos[0], TIDER[tidIx].solPos[1], kam.pos.z + TIDER[tidIx].solPos[2]);
+
+  if(vindShader) vindShader.uniforms.tid.value = t;
 
   for(const g of gungor){
     const v = Math.sin(t*0.9 + g.fas) * g.amp;
@@ -2493,7 +2704,7 @@ function rita(){
 rita();
 
 /* liten lucka utåt — handig för att länka in i världen eller felsöka */
-window.tradgarden = { kam, namn:NAMN, flygTill, sattTid, visaKort };
+window.tradgarden = { kam, namn:NAMN, flygTill, sattTid, visaKort, scen:scene, ritare:renderer };
 
 /* klart */
 setTimeout(() => {
@@ -2501,7 +2712,7 @@ setTimeout(() => {
   l.style.opacity = 0;
   setTimeout(() => l.remove(), 600);
 }, 350);
-setTimeout(() => { if(hintTid <= 0) hintEl.style.opacity = 0; }, 6000);
+setTimeout(() => { if(hintTid <= 0) hintEl.style.opacity = 0; }, 9000);
 
 })();
 </script>
