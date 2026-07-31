@@ -39,11 +39,11 @@ Förstasidans chatt kan även användas med rösten: mikrofonknappen använder w
 
 ## Trädgården i 3D
 
-`tradgard.html` är en fristående 3D-värld av trädgården, byggd efter 16 foton. Den nås från **Mer**-fliken eller direkt på `/tradgard.html` och kräver ingen inloggning.
+`tradgard.html` är en fristående 3D-värld av trädgården, byggd efter 20 foton och tomtens förrättningskarta. Den nås från **Mer**-fliken eller direkt på `/tradgard.html` och kräver ingen inloggning.
 
-- **75 namngivna saker** — blommor, bär, grönsaker, träd, byggnader och möbler. Varje sak har svenskt namn, latinskt namn och en kort beskrivning. Namnlapparna kan tryckas på, och **Växtlistan** har sökfält och flyger kameran till det man väljer.
+- **83 namngivna saker** — blommor, bär, grönsaker, träd, byggnader och möbler. Varje sak har svenskt namn, latinskt namn och en kort beskrivning. Namnlapparna kan tryckas på, och **Växtlistan** har sökfält och flyger kameran till det man väljer.
 - **Gå runt** med bara två tangenter: `↑` går framåt och `←` `→` svänger, som att styra en cykel — musen behövs inte. Farten och svängen accelererar mjukt och rullar ut, och blicken rätar upp sig själv när man går rakt fram. `Shift` springer, `Q`/`E` kliver i sidled, mellanslag rätar upp blicken, `F` ger flygläge där man flyger dit man tittar, `L` släcker namnlapparna. På telefon: styrspaken går framåt och svänger.
-- **Rundtur** går igenom trädgårdens 20 platser av sig själv, från gräsmattan ut genom grinden och tillbaka in i växthuset.
+- **Rundtur** går igenom trädgårdens 22 platser av sig själv, från gräsmattan ut genom grinden och tillbaka in i växthuset.
 - **Morgon / Dag / Kväll** flyttar solen och ändrar himlen.
 - Arter som var svåra att artbestämma på foto är märkta *”osäker art”* i informationsrutan.
 
