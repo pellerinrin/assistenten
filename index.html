@@ -204,6 +204,37 @@ input:focus,select:focus,textarea:focus{outline:none; border-color:var(--bronze)
 .alk-dag.idag{box-shadow:0 0 0 2px var(--bronze)}
 .streck-lista{display:flex; flex-direction:column}
 
+/* ---- mediciner & kosttillskott ---- */
+.dos{display:flex; gap:10px; align-items:center; padding:8px 2px; border-top:1px solid var(--line-soft)}
+.dos:first-of-type{border-top:none}
+.dos input[type=checkbox]{width:20px; height:20px; accent-color:var(--green); flex:none}
+.dos .d-text{flex:1; min-width:0; font-size:14.5px}
+.dos .d-dos{font-size:12.5px; color:var(--ink-dim); font-style:italic}
+.dos.tagen .d-namn{text-decoration:line-through; color:var(--ink-dim)}
+.tid-rubrik{
+  font-size:11.5px; letter-spacing:.07em; text-transform:uppercase;
+  color:var(--ink-soft); margin:12px 0 1px;
+}
+.med-lista .d-namn{font-weight:500}
+.med-period{font-size:12.5px; color:var(--ink-dim); font-style:italic}
+.med-period.slut{color:var(--terra); font-style:normal}
+
+/* ---- formen: styrka, smidighet, kondition ---- */
+.matt{display:flex; gap:10px; align-items:center; padding:9px 2px; border-top:1px solid var(--line-soft)}
+.matt:first-of-type{border-top:none}
+.matt .mt-namn{flex:1; min-width:0; font-size:14.5px}
+.matt .mt-under{font-size:12.5px; color:var(--ink-dim); font-style:italic}
+.matt .mt-varde{font-family:Georgia,serif; font-weight:600; white-space:nowrap; font-size:14.5px}
+.matt .mt-diff{font-size:12.5px; white-space:nowrap}
+.matt .mt-diff.upp{color:var(--green); font-weight:600}
+.matt .mt-diff.ner{color:var(--terra)}
+.spark{width:58px; height:22px; flex:none}
+.spark polyline{fill:none; stroke:var(--ink-dim); stroke-width:1.5; stroke-linejoin:round; stroke-linecap:round}
+.form-sammanfattning{
+  font-family:Georgia,serif; font-style:italic; font-size:14.5px; line-height:1.55;
+  color:var(--ink-soft); margin:2px 0 10px;
+}
+
 /* ---- knappar ---- */
 .btn{
   border:1px solid var(--green); background:var(--green); color:#fdfbf4;
@@ -430,12 +461,15 @@ function halsaNorm(h){
   const k = (h && typeof h === 'object') ? h : {};
   const mal = (k.mal && typeof k.mal === 'object') ? k.mal : {};
   return {
-    schema:  Array.isArray(k.schema)  ? k.schema  : [],
-    pass:    Array.isArray(k.pass)    ? k.pass    : [],
-    vikt:    Array.isArray(k.vikt)    ? k.vikt    : [],
-    alkohol: Array.isArray(k.alkohol) ? k.alkohol : [],
+    schema:     Array.isArray(k.schema)     ? k.schema     : [],
+    pass:       Array.isArray(k.pass)       ? k.pass       : [],
+    vikt:       Array.isArray(k.vikt)       ? k.vikt       : [],
+    alkohol:    Array.isArray(k.alkohol)    ? k.alkohol    : [],
+    mediciner:  Array.isArray(k.mediciner)  ? k.mediciner  : [], /* stående ordinationer, en gång inlagda */
+    intag:      Array.isArray(k.intag)      ? k.intag      : [], /* avbockade doser, en rad per dos och dag */
+    matningar:  Array.isArray(k.matningar)  ? k.matningar  : [], /* styrka, smidighet, kondition över tid */
+    egnaTester: Array.isArray(k.egnaTester) ? k.egnaTester : [],
     mal: {
-      vikt:      (mal.vikt === null || mal.vikt === undefined || mal.vikt === '') ? null : Number(mal.vikt),
       veckopass: Number(mal.veckopass) > 0 ? Number(mal.veckopass) : 3,
       veckoglas: Number(mal.veckoglas) >= 0 ? Number(mal.veckoglas) : 9
     }
@@ -689,6 +723,10 @@ function checkNotiser(){
   const kvarIdag = schemaForDag(wIdx(todayDate())).filter(s => !schemapassGjort(s.id, ts));
   if(kvarIdag.length) once('t-' + ts, () =>
     fireNotis('Assistenten 🌿', 'Träning idag: ' + kvarIdag.map(s => s.namn).join(', '), 't-' + ts));
+  /* dagens mediciner och tillskott */
+  const doserIdag = dagensDoser(ts).filter(d => !dosTagen(d.medicin.id, ts, d.tid));
+  if(doserIdag.length) once('m-' + ts, () =>
+    fireNotis('Assistenten 💊', 'Att ta idag: ' + doserIdag.map(d => d.medicin.namn).join(', '), 'm-' + ts));
   /* bevakningar med datum: imorgon och på dagen */
   for(const p of state.poster){
     if(p.klar || !p.datum) continue;
@@ -884,6 +922,20 @@ function renderIdag(){
   const sistaVikt = viktSenaste();
   if(sistaVikt && dagarTill(sistaVikt.datum) <= -7){
     lage += radHtml('⚖️', Math.abs(dagarTill(sistaVikt.datum)) + ' dagar sedan du vägde dig sist');
+  }
+  /* mediciner och tillskott som ännu inte är avbockade idag */
+  const doserKvarIdag = doserKvar(ts);
+  if(doserKvarIdag){
+    const nasta = dagensDoser(ts).filter(x => !dosTagen(x.medicin.id, ts, x.tid));
+    lage += radHtml('💊', doserKvarIdag + (doserKvarIdag === 1 ? ' dos kvar idag: ' : ' doser kvar idag: ') +
+      esc(nasta.map(x => x.medicin.namn).join(', ')) + ' <span class="dim">(bocka av under Hälsa)</span>');
+  } else if(dagensDoser(ts).length){
+    lage += radHtml('💊', 'Allt taget för idag — mediciner och tillskott');
+  }
+  /* dags att testa formen igen? */
+  const sistaMatt = senasteMatning();
+  if(sistaMatt && dagarTill(sistaMatt.datum) <= -42){
+    lage += radHtml('🤸', 'Det var ' + Math.abs(dagarTill(sistaMatt.datum)) + ' dagar sedan du testade formen sist');
   }
 
   const sb = d.skrivbordet || {};
@@ -1145,7 +1197,9 @@ function prataSystemPrompt(){
     '- Säger Anna att en eller flera saker är gjorda/klara: lista i "matcha_texter" en ordagrann del av varje befintlig bevaknings text som ska bockas av. Vill hon flytta fram, döpa om eller ändra en bevakning (inte bocka av): använd "andra_bevakningar" med matcha + ny_text/nytt_datum. Finns ingen träff, ställ en följdfråga i stället — men gissa inte.\n' +
     '- Efter att svara har körts avslutas din tur — det finns inget "nästa steg" du kommer ihåg till senare. Behöver du öppna en sida eller söka: gör det INNAN du anropar svara, i samma tur. Säg aldrig "jag gör det i nästa steg" eller liknande.\n' +
     '- Ekonomi kan du sköta direkt härifrån med fältet "ekonomi" i svara: ny_post (räkning/faktura med beskrivning, belopp, forfallodatum; redan_klar true om den redan är betald/mottagen), markera_klar (matcha_beskrivning mot en väntande post) och uppdatera_saldo. Detaljerad genomgång av ekonomin finns också i fliken Ekonomi.\n' +
-    '- Hälsan sköter du med fältet "halsa" i svara: vikt (kg + datum), alkohol (antal glas en viss dag, 0 = alkoholfri dag) och pass (ett genomfört träningspass). Säger Anna "jag vägde 68 kilo i morse", "det blev två glas vin igår" eller "jag hann med styrkepasset" — notera det direkt, en post per sak, och bekräfta kort. Kommentera aldrig hennes vikt eller drickande moraliserande; håll dig till det hon frågar efter.\n' +
+    '- Hälsan sköter du med fältet "halsa" i svara: vikt, alkohol (0 glas = alkoholfri dag), pass (genomfört träningspass), medicin_tagen (bocka av en dos) och matning (ett formmått). Säger Anna "jag vägde 68 kilo i morse", "det blev två glas vin igår", "jag hann med styrkepasset", "jag har tagit min Levaxin" eller "jag klarade 18 armhävningar" — notera det direkt, en post per sak, och bekräfta kort.\n' +
+    '- Anna vill mäta att hon känner sig ung i styrka, smidighet och kondition, inte jaga en vikt. Hon har medvetet ingen målvikt: föreslå aldrig en, och koppla aldrig ihop vikten med hur hon mår eller ser ut. Prata hellre om vad kroppen orkar och klarar. Kommentera aldrig hennes vikt, drickande eller mediciner moraliserande.\n' +
+    '- Du är sekreterare, inte läkare: notera och påminn om mediciner och tillskott precis som Anna sagt, men ändra aldrig doser på eget bevåg och ge inga medicinska råd — hänvisa till hennes läkare eller apotek när det handlar om verkan, biverkningar eller att ändra en behandling.\n' +
     '- Berättar Anna något varaktigt om sig själv eller sina projekt som du bör minnas framöver (inte en uppgift med datum): spara en kort rad i "anteckning" — den hamnar i dina egna anteckningar om henne.\n' +
     '- Klistrar Anna in en länk hämtas sidans text automatiskt åt dig och ligger i ett textblock i meddelandet. Vill du läsa mer (undersidor, källor) — använd oppna_lank. Låtsas aldrig att du läst något du inte fått innehåll för.\n' +
     '- Är något oklart: ställ en kort följdfråga i "svar" i stället för att ändra något.\n' +
@@ -1216,18 +1270,22 @@ const PRATA_TOOL = {
       },
       halsa: {
         type: 'array',
-        description: 'Hälsonoteringar: vägningar, alkohol och genomförda träningspass.',
+        description: 'Hälsonoteringar: vägningar, alkohol, genomförda träningspass, tagna mediciner och mätningar av formen.',
         items: {
           type: 'object',
           properties: {
-            action: { type: 'string', enum: ['vikt', 'alkohol', 'pass'] },
+            action: { type: 'string', enum: ['vikt', 'alkohol', 'pass', 'medicin_tagen', 'matning'] },
             datum: { type: ['string', 'null'], description: 'ÅÅÅÅ-MM-DD. Utelämna för idag.' },
             kg: { type: ['number', 'null'], description: 'Vikt i kilo (action vikt).' },
             glas: { type: ['number', 'null'], description: 'Antal standardglas den dagen, 0 för en alkoholfri dag (action alkohol).' },
             vad: { type: ['string', 'null'], description: 'Kort notering om tillfället (action alkohol).' },
             namn: { type: ['string', 'null'], description: 'Vad passet var, t.ex. "Styrka, ben" (action pass).' },
             typ: { type: ['string', 'null'], enum: ['styrka', 'kondition', 'promenad', 'rorlighet', 'annat', null] },
-            minuter: { type: ['number', 'null'] }
+            minuter: { type: ['number', 'null'] },
+            matcha_medicin: { type: ['string', 'null'], description: 'Ordagrann del av medicinens eller tillskottets namn (action medicin_tagen).' },
+            tid: { type: ['string', 'null'], enum: ['morgon', 'lunch', 'kvall', 'natt', null], description: 'Vilken dos som tagits (action medicin_tagen). Utelämna för den första otagna dosen den dagen.' },
+            test: { type: ['string', 'null'], description: 'Vilket formmått mätningen gäller (action matning): armhavningar, planka, knaboj, hang, framatboj, axelgrepp, ettben, golvresning, vilopuls, tvakm, trappor, aterhamtning — eller ordagrann del av namnet på ett eget mått.' },
+            varde: { type: ['number', 'null'], description: 'Mätvärdet i måttets enhet (action matning).' }
           },
           required: ['action']
         }
@@ -1462,7 +1520,46 @@ const PASSTYPER = {
 };
 function passEmoji(typ){ return (PASSTYPER[typ] || PASSTYPER.annat).emoji; }
 
-let halsaForm = { passOpen: false, schemaOpen: false, schemaDag: null, visaAllVikt: false, visaAllAlk: false };
+/* Doserna på dygnet. En medicin läggs in EN gång med de tider den ska tas —
+   sedan dyker den upp av sig själv varje dag den gäller, tills ett slutdatum
+   passeras (eller för alltid, om inget slutdatum satts). */
+const DOSTIDER = {
+  morgon: { namn: 'Morgon', emoji: '🌅' },
+  lunch:  { namn: 'Lunch',  emoji: '🍽' },
+  kvall:  { namn: 'Kväll',  emoji: '🌙' },
+  natt:   { namn: 'Natt',   emoji: '🌜' },
+};
+
+/* Formen mäts i egna test, inte mot en målvikt: hur mycket du orkar, hur
+   lätt du rör dig och hur snabbt hjärtat går. riktning = åt vilket håll det
+   är en förbättring. */
+const TESTKATEGORIER = {
+  styrka:    { namn: 'Styrka',             emoji: '💪' },
+  smidighet: { namn: 'Smidighet & balans', emoji: '🤸' },
+  kondition: { namn: 'Kondition',          emoji: '❤️' },
+};
+const TESTER = {
+  armhavningar: { kategori: 'styrka',    namn: 'Armhävningar i rad',                  enhet: 'st',       riktning: 'upp' },
+  planka:       { kategori: 'styrka',    namn: 'Planka',                              enhet: 'sek',      riktning: 'upp' },
+  knaboj:       { kategori: 'styrka',    namn: 'Knäböj på 60 sekunder',               enhet: 'st',       riktning: 'upp' },
+  hang:         { kategori: 'styrka',    namn: 'Hänga i stång',                       enhet: 'sek',      riktning: 'upp' },
+  framatboj:    { kategori: 'smidighet', namn: 'Framåtböj — från fingrar till golv',  enhet: 'cm',       riktning: 'ner' },
+  axelgrepp:    { kategori: 'smidighet', namn: 'Axelgrepp bakom ryggen — mellan händerna', enhet: 'cm',  riktning: 'ner' },
+  ettben:       { kategori: 'smidighet', namn: 'Stå på ett ben med slutna ögon',      enhet: 'sek',      riktning: 'upp' },
+  golvresning:  { kategori: 'smidighet', namn: 'Res dig från golvet utan händer',     enhet: 'poäng',    riktning: 'upp' },
+  vilopuls:     { kategori: 'kondition', namn: 'Vilopuls på morgonen',                enhet: 'slag/min', riktning: 'ner' },
+  tvakm:        { kategori: 'kondition', namn: '2 km på tid',                         enhet: 'min',      riktning: 'ner' },
+  trappor:      { kategori: 'kondition', namn: 'Trappvåningar utan att bli andfådd',  enhet: 'våningar', riktning: 'upp' },
+  aterhamtning: { kategori: 'kondition', namn: 'Puls en minut efter ansträngning',    enhet: 'slag/min', riktning: 'ner' },
+};
+
+let halsaForm = {
+  passOpen: false, schemaOpen: false, schemaDag: null,
+  visaAllVikt: false, visaAllAlk: false,
+  medOpen: false, medSort: 'medicin', medTider: ['morgon'], medDagar: [], medVidBehov: false,
+  visaMedLista: false, mattOpen: false, egetOpen: false,
+  mattVald: null /* senast valda formmåttet — förvalt nästa gång, så ett nytt eget mått hamnar rätt */
+};
 
 /* ---- träningen ---- */
 function veckoStart(d){ return addDays(d, -wIdx(d)); }
@@ -1543,6 +1640,139 @@ function alkKlass(glas, registrerad){
   return 'mycket';
 }
 
+/* ---- mediciner & kosttillskott ---- */
+/* Gäller ordinationen alls det här datumet? (period + veckodagar) */
+function medPagar(m, ds){
+  if(m.start && ds < m.start) return false;
+  if(m.slut && ds > m.slut) return false;
+  return true;
+}
+/* Ska den tas just den här dagen? Vid behov-preparat schemaläggs aldrig. */
+function medGallerDag(m, ds){
+  if(!medPagar(m, ds) || m.vidBehov) return false;
+  const dagar = Array.isArray(m.dagar) ? m.dagar : [];
+  return !dagar.length || dagar.includes(wIdx(parseDate(ds)));
+}
+function dosTagen(medId, ds, tid){
+  return state.halsa.intag.find(i => i.medicinId === medId && i.datum === ds && i.tid === tid) || null;
+}
+/* dagens doser i tidsordning: [{medicin, tid}] */
+function dagensDoser(ds){
+  const ordning = Object.keys(DOSTIDER);
+  const ut = [];
+  for(const m of state.halsa.mediciner){
+    if(!medGallerDag(m, ds)) continue;
+    const tider = (Array.isArray(m.tider) && m.tider.length) ? m.tider : ['morgon'];
+    for(const t of tider) ut.push({ medicin: m, tid: t });
+  }
+  return ut.sort((a, b) => ordning.indexOf(a.tid) - ordning.indexOf(b.tid));
+}
+function doserKvar(ds){
+  return dagensDoser(ds).filter(d => !dosTagen(d.medicin.id, ds, d.tid)).length;
+}
+/* följsamhet de senaste dagarna — idag räknas inte, den är ju inte slut än */
+function dosFoljsamhet(dagar){
+  let tagna = 0, totalt = 0;
+  for(let i = 1; i <= dagar; i++){
+    const ds = fmtDate(addDays(todayDate(), -i));
+    for(const d of dagensDoser(ds)){
+      totalt++;
+      if(dosTagen(d.medicin.id, ds, d.tid)) tagna++;
+    }
+  }
+  return { tagna: tagna, totalt: totalt };
+}
+function medText(m){
+  return m.namn + (m.dos ? ' ' + m.dos : '');
+}
+function medPeriodText(m){
+  const ts = fmtDate(todayDate());
+  if(m.slut && m.slut < ts) return { text: 'avslutad ' + m.slut, klass: 'slut' };
+  const delar = [];
+  if(m.vidBehov) delar.push('vid behov');
+  else {
+    const dagar = Array.isArray(m.dagar) ? m.dagar : [];
+    delar.push(dagar.length ? dagar.map(d => WDAYS[d].slice(0, 3)).join(', ') : 'varje dag');
+    delar.push((m.tider || []).map(t => (DOSTIDER[t] || {}).namn || t).join(' + ').toLowerCase());
+  }
+  if(m.start && m.start > ts) delar.push('börjar ' + narText(m.start).text);
+  else if(m.start === ts) delar.push('från och med idag');
+  else if(m.start) delar.push('sedan ' + m.start);
+  if(m.slut) delar.push('till och med ' + m.slut);
+  else if(!m.vidBehov) delar.push('tills vidare');
+  return { text: delar.join(' · '), klass: '' };
+}
+
+/* ---- formen: styrka, smidighet, kondition ---- */
+function testInfo(key){
+  if(TESTER[key]) return TESTER[key];
+  const eget = state.halsa.egnaTester.find(t => t.id === key);
+  return eget || null;
+}
+function testNycklar(){
+  return Object.keys(TESTER).concat(state.halsa.egnaTester.map(t => t.id));
+}
+function matningarFor(key){
+  return state.halsa.matningar.filter(m => m.test === key)
+    .sort((a, b) => String(a.datum).localeCompare(String(b.datum)));
+}
+/* senaste värdet jämfört med det allra första och med gången innan */
+function testLage(key){
+  const info = testInfo(key);
+  const rader = matningarFor(key);
+  if(!info || !rader.length) return null;
+  const senaste = rader[rader.length - 1];
+  const forsta = rader[0];
+  const innan = rader.length > 1 ? rader[rader.length - 2] : null;
+  const battre = (fran, till) => info.riktning === 'ner' ? till < fran : till > fran;
+  return {
+    info: info, antal: rader.length, rader: rader,
+    senaste: senaste, forsta: forsta,
+    sedanStart: rader.length > 1 ? { diff: senaste.varde - forsta.varde, battre: battre(forsta.varde, senaste.varde) } : null,
+    sedanInnan: innan ? { diff: senaste.varde - innan.varde, battre: battre(innan.varde, senaste.varde) } : null
+  };
+}
+/* hur många av kategorins mått som är bättre än vid första mätningen */
+function kategoriLage(kategori){
+  let battre = 0, matta = 0;
+  for(const key of testNycklar()){
+    const info = testInfo(key);
+    if(!info || info.kategori !== kategori) continue;
+    const lage = testLage(key);
+    if(!lage) continue;
+    matta++;
+    if(lage.sedanStart && lage.sedanStart.battre) battre++;
+  }
+  return { battre: battre, matta: matta };
+}
+function senasteMatning(){
+  const alla = state.halsa.matningar.slice().sort((a, b) => String(a.datum).localeCompare(String(b.datum)));
+  return alla.length ? alla[alla.length - 1] : null;
+}
+function fmtVarde(v, info){
+  const n = Math.round(Number(v) * 10) / 10;
+  return String(n).replace('.', ',') + ' ' + info.enhet;
+}
+function fmtMattDiff(diff, info){
+  const n = Math.round(Math.abs(diff) * 10) / 10;
+  return (diff > 0 ? '+' : diff < 0 ? '−' : '±') + String(n).replace('.', ',') + ' ' + info.enhet;
+}
+/* liten kurva bredvid varje mått — samma idé som viktgrafen, i miniatyr */
+function sparkline(rader, riktning){
+  if(rader.length < 3) return '<span class="spark"></span>';
+  const W = 58, H = 22, pad = 2;
+  const varden = rader.map(r => Number(r.varde));
+  let min = Math.min.apply(null, varden), max = Math.max.apply(null, varden);
+  if(max - min < 0.001){ min -= 0.5; max += 0.5; }
+  const punkter = rader.map((r, i) => {
+    const x = pad + (W - 2 * pad) * (rader.length === 1 ? 0.5 : i / (rader.length - 1));
+    const y = pad + (H - 2 * pad) * (1 - (Number(r.varde) - min) / (max - min));
+    return x.toFixed(1) + ',' + y.toFixed(1);
+  }).join(' ');
+  return '<svg class="spark" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true">' +
+    '<polyline points="' + punkter + '"></polyline></svg>';
+}
+
 /* En kompakt sammanfattning som chatten och morgonbriefen kan läsa. */
 function halsaSammanfattning(){
   const t = todayDate();
@@ -1559,11 +1789,42 @@ function halsaSammanfattning(){
     (veckansPass.length ? ' (' + veckansPass.map(p => p.namn).join(', ') + ')' : ''));
   rader.push('Vikt: ' + (v ? v.kg + ' kg (' + v.datum + ')' +
     (f7 ? ', ' + (f7.kg > 0 ? '+' : '') + f7.kg + ' kg på 7 dagar' : '') +
-    (f30 ? ', ' + (f30.kg > 0 ? '+' : '') + f30.kg + ' kg på 30 dagar' : '') +
-    (h.mal.vikt ? ', målvikt ' + h.mal.vikt + ' kg' : '')
-    : 'ingen vägning registrerad'));
+    (f30 ? ', ' + (f30.kg > 0 ? '+' : '') + f30.kg + ' kg på 30 dagar' : '')
+    : 'ingen vägning registrerad') + ' (Anna har ingen målvikt — vikten följs bara som en siffra bland andra)');
   rader.push('Alkohol: ' + alkoholIVeckan(t) + ' glas denna vecka (mål högst ' + h.mal.veckoglas + '), ' +
     (sedan ? (sedan.dagar === 0 ? 'senast idag' : sedan.dagar + ' dagar sedan senaste glaset') : 'inget registrerat ännu'));
+
+  /* mediciner och kosttillskott */
+  const ts = fmtDate(t);
+  const doser = dagensDoser(ts);
+  const kvar = doser.filter(d => !dosTagen(d.medicin.id, ts, d.tid));
+  const vidBehov = h.mediciner.filter(m => m.vidBehov && medPagar(m, ts));
+  rader.push('Mediciner och kosttillskott: ' + (h.mediciner.length
+    ? h.mediciner.filter(m => medPagar(m, ts) && !m.vidBehov).map(m => medText(m) + ' (' + medPeriodText(m).text + ')').join('; ') +
+      (vidBehov.length ? '. Vid behov: ' + vidBehov.map(medText).join('; ') : '') +
+      '. Idag: ' + doser.length + ' doser, ' + (kvar.length
+        ? kvar.length + ' kvar att ta (' + kvar.map(d => medText(d.medicin) + ' ' + (DOSTIDER[d.tid] || {}).namn).join(', ') + ')'
+        : 'alla tagna')
+    : 'inget inlagt'));
+
+  /* formen — det Anna faktiskt mäter i stället för en målvikt */
+  const formRader = [];
+  for(const kat of Object.keys(TESTKATEGORIER)){
+    const bitar = [];
+    for(const key of testNycklar()){
+      const info = testInfo(key);
+      if(!info || info.kategori !== kat) continue;
+      const lage = testLage(key);
+      if(!lage) continue;
+      bitar.push(info.namn + ': ' + lage.senaste.varde + ' ' + info.enhet + ' (' + lage.senaste.datum + ')' +
+        (lage.sedanStart ? ', ' + (lage.sedanStart.diff > 0 ? '+' : '') + Math.round(lage.sedanStart.diff * 10) / 10 +
+          ' sedan första mätningen — ' + (lage.sedanStart.battre ? 'bättre' : 'sämre') : '') +
+        (info.riktning === 'ner' ? ' [lägre är bättre]' : ''));
+    }
+    if(bitar.length) formRader.push(TESTKATEGORIER[kat].namn + ' — ' + bitar.join('; '));
+  }
+  rader.push('Formen (Annas egna mått på att känna sig ung; hon vill mäta styrka, smidighet och kondition i stället för att jaga en vikt):\n' +
+    (formRader.length ? formRader.join('\n') : 'inga mätningar gjorda ännu'));
   return rader.join('\n');
 }
 
@@ -1666,6 +1927,122 @@ function renderHalsa(){
     '<p class="small dim" style="margin-top:6px">Ett standardglas ≈ 33 cl starköl, 12–15 cl vin eller 4 cl sprit.</p>';
   html += '</div>';
 
+  /* ---- mediciner & kosttillskott ---- */
+  const doserIdag = dagensDoser(ts);
+  const vidBehov = h.mediciner.filter(m => m.vidBehov && medPagar(m, ts));
+  const kvarIdagDoser = doserKvar(ts);
+  html += '<div class="card"><h2>💊 Mediciner & kosttillskott</h2>' +
+    '<p class="small muted">Lägg in det du tar en enda gång — det kommer tillbaka av sig självt varje dag som gäller, ända tills du sätter ett slutdatum.</p>';
+  if(doserIdag.length){
+    let sistTid = null;
+    for(const d of doserIdag){
+      if(d.tid !== sistTid){
+        const info = DOSTIDER[d.tid] || { namn: d.tid, emoji: '💊' };
+        html += '<div class="tid-rubrik">' + info.emoji + ' ' + esc(info.namn) + '</div>';
+        sistTid = d.tid;
+      }
+      const tagen = dosTagen(d.medicin.id, ts, d.tid);
+      html += '<label class="dos' + (tagen ? ' tagen' : '') + '">' +
+        '<input type="checkbox"' + (tagen ? ' checked' : '') +
+        ' onchange="App.halsaDos(\'' + d.medicin.id + '\',\'' + d.tid + '\')">' +
+        '<span class="d-text"><span class="d-namn">' + esc(d.medicin.namn) + '</span>' +
+        (d.medicin.dos ? ' <span class="d-dos">' + esc(d.medicin.dos) + '</span>' : '') +
+        '</span>' +
+        (d.medicin.sort === 'tillskott' ? '<span class="dim small">tillskott</span>' : '') +
+        '</label>';
+    }
+    html += '<p class="small" style="margin-top:10px;color:' + (kvarIdagDoser ? 'var(--ink-soft)' : 'var(--green)') + '">' +
+      (kvarIdagDoser ? kvarIdagDoser + (kvarIdagDoser === 1 ? ' dos kvar idag.' : ' doser kvar idag.')
+        : 'Allt taget för idag 🌿') + '</p>';
+  } else if(h.mediciner.length){
+    html += '<p class="small muted" style="margin-top:8px"><i>Inget schemalagt att ta idag.</i></p>';
+  }
+
+  if(vidBehov.length){
+    html += '<div class="tid-rubrik">🕊 Vid behov</div>';
+    for(const m of vidBehov){
+      const tagna = state.halsa.intag.filter(i => i.medicinId === m.id)
+        .sort((a, b) => String(b.datum + (b.tid || '')).localeCompare(String(a.datum + (a.tid || ''))));
+      const senast = tagna.length ? tagna[0] : null;
+      html += '<div class="dos"><span class="r-emoji">💊</span>' +
+        '<span class="d-text"><span class="d-namn">' + esc(m.namn) + '</span>' +
+        (m.dos ? ' <span class="d-dos">' + esc(m.dos) + '</span>' : '') +
+        '<div class="d-dos">' + (senast ? 'senast ' + esc(narText(senast.datum).text) : 'aldrig tagen') +
+        (() => {
+          const senasteManaden = tagna.filter(i => dagarTill(i.datum) >= -30).length;
+          return senasteManaden
+            ? ' · ' + senasteManaden + (senasteManaden === 1 ? ' gång' : ' gånger') + ' senaste månaden'
+            : '';
+        })() +
+        '</div></span>' +
+        '<button class="btn small ghost" onclick="App.halsaVidBehovTagen(\'' + m.id + '\')">Tog en nu</button></div>';
+    }
+  }
+
+  const foljs = dosFoljsamhet(7);
+  if(foljs.totalt){
+    html += '<p class="small dim" style="margin-top:10px">Senaste veckan: <b>' + foljs.tagna + ' av ' + foljs.totalt +
+      '</b> doser avbockade.</p>';
+  }
+
+  /* hela listan, inklusive avslutade */
+  if(h.mediciner.length){
+    html += '<p class="small muted" style="cursor:pointer;margin-top:10px" onclick="App.halsaToggleMedLista()">' +
+      (halsaForm.visaMedLista ? '▾' : '▸') + ' Allt jag har lagt in — ' + h.mediciner.length + ' ' +
+      (h.mediciner.length === 1 ? 'sak' : 'saker') + '</p>';
+    if(halsaForm.visaMedLista){
+      html += '<div class="med-lista">';
+      for(const m of h.mediciner){
+        const per = medPeriodText(m);
+        const avslutad = per.klass === 'slut';
+        html += '<div class="dos"><span class="r-emoji">' + (m.sort === 'tillskott' ? '🌱' : '💊') + '</span>' +
+          '<span class="d-text"><span class="d-namn"' + (avslutad ? ' style="color:var(--ink-dim)"' : '') + '>' +
+          esc(medText(m)) + '</span>' +
+          '<div class="med-period ' + per.klass + '">' + esc(per.text) + '</div>' +
+          (m.anteckning ? '<div class="d-dos">' + esc(m.anteckning) + '</div>' : '') +
+          '</span>' +
+          (avslutad ? '' : '<button class="btn small ghost" title="Sluta ta den, men behåll historiken" onclick="App.halsaMedAvsluta(\'' + m.id + '\')">Avsluta</button>') +
+          '<button class="p-bort" title="Ta bort helt" onclick="App.halsaMedBort(\'' + m.id + '\')">✕</button></div>';
+      }
+      html += '</div>';
+    }
+  }
+
+  if(!halsaForm.medOpen){
+    html += '<div class="knapprad"><button class="btn small ghost" onclick="App.halsaVisaMedForm(true)">+ Lägg till medicin eller tillskott</button></div>';
+  } else {
+    html += '<div class="ny-form" style="margin-top:12px">' +
+      '<div class="typvalj">' +
+      '<button id="medSortM" class="' + (halsaForm.medSort === 'tillskott' ? '' : 'vald-ut') + '" onclick="App.halsaMedSort(\'medicin\')">💊 Medicin</button>' +
+      '<button id="medSortT" class="' + (halsaForm.medSort === 'tillskott' ? 'vald-in' : '') + '" onclick="App.halsaMedSort(\'tillskott\')">🌱 Kosttillskott</button>' +
+      '</div>' +
+      '<input type="text" id="medNamn" placeholder="Vad heter det? (t.ex. Levaxin, D-vitamin)">' +
+      '<input type="text" id="medDos" placeholder="Dos (valfritt — t.ex. 100 µg, 1 tablett)">' +
+      '<label class="small" style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:2px 0">' +
+      '<input type="checkbox" id="medVidBehov" style="width:18px;height:18px;accent-color:var(--green)"' +
+      (halsaForm.medVidBehov ? ' checked' : '') + ' onchange="App.halsaMedVidBehov(this)">' +
+      'Vid behov — inget schema, jag noterar när jag tar den</label>' +
+      '<div id="medSchemaDel"' + (halsaForm.medVidBehov ? ' style="display:none"' : '') + '>' +
+      '<p class="small muted" style="margin:4px 0 4px">När på dygnet?</p>' +
+      '<div class="dagvalj">' + Object.keys(DOSTIDER).map(k =>
+        '<button id="medTid-' + k + '" class="' + (halsaForm.medTider.includes(k) ? 'vald' : '') + '" onclick="App.halsaMedTid(\'' + k + '\')">' +
+        DOSTIDER[k].emoji + ' ' + esc(DOSTIDER[k].namn) + '</button>').join('') + '</div>' +
+      '<p class="small muted" style="margin:8px 0 4px">Vilka dagar? <span class="dim">(inget val = varje dag)</span></p>' +
+      '<div class="dagvalj">' + WDAYS.map((d, i) =>
+        '<button id="medDag-' + i + '" class="' + (halsaForm.medDagar.includes(i) ? 'vald' : '') + '" onclick="App.halsaMedDag(' + i + ')">' +
+        esc(cap(d).slice(0, 3)) + '</button>').join('') + '</div>' +
+      '</div>' +
+      '<p class="small muted" style="margin:8px 0 0">Period — lämna slutdatum tomt om den ska fortsätta tills vidare:</p>' +
+      '<div class="ny-rad2">' +
+      '<input type="date" id="medStart" value="' + ts + '" style="flex:1">' +
+      '<input type="date" id="medSlut" style="flex:1">' +
+      '</div>' +
+      '<input type="text" id="medAnteckning" placeholder="Anteckning (valfritt — t.ex. tas med mat)">' +
+      '<div class="knapprad"><button class="btn" onclick="App.halsaMedNy()">Spara</button>' +
+      '<button class="btn ghost" onclick="App.halsaVisaMedForm(false)">Avbryt</button></div></div>';
+  }
+  html += '</div>';
+
   /* ---- träningsschemat ---- */
   html += '<div class="card"><h2>🗓 Träningsschema</h2>' +
     '<p class="small muted">Det här är veckan som återkommer. Passen dyker upp att bocka av på rätt dag — både här och under Idag.</p>';
@@ -1706,28 +2083,124 @@ function renderHalsa(){
   }
   html += '</div>';
 
+  /* ---- formen: styrka, smidighet, kondition ---- */
+  html += '<div class="card"><h2>🤸 Formen</h2>' +
+    '<p class="small muted">Måtten på att känna sig ung: hur mycket du orkar, hur lätt du rör dig och hur fort hjärtat lugnar ner sig. Testa om med några veckors mellanrum — det enda du jämför dig med är du själv.</p>';
+
+  const summering = [];
+  for(const kat of Object.keys(TESTKATEGORIER)){
+    const l = kategoriLage(kat);
+    if(!l.matta) continue;
+    summering.push(TESTKATEGORIER[kat].emoji + ' ' + TESTKATEGORIER[kat].namn.toLowerCase() + ': ' +
+      (l.matta === 1
+        ? (l.battre ? 'bättre än vid start' : 'ingen förbättring än')
+        : l.battre + ' av ' + l.matta + ' mått bättre än vid start'));
+  }
+  if(summering.length) html += '<p class="form-sammanfattning">' + esc(summering.join(' · ')) + '</p>';
+
+  let harMatningar = false;
+  for(const kat of Object.keys(TESTKATEGORIER)){
+    const nycklar = testNycklar().filter(k => {
+      const info = testInfo(k);
+      return info && info.kategori === kat && matningarFor(k).length;
+    });
+    if(!nycklar.length) continue;
+    harMatningar = true;
+    html += '<div class="omr-rubrik" style="margin-top:12px"><h3>' + TESTKATEGORIER[kat].emoji + ' ' +
+      esc(TESTKATEGORIER[kat].namn) + '</h3><span class="streck"></span></div>';
+    for(const key of nycklar){
+      const lage = testLage(key);
+      const info = lage.info;
+      html += '<div class="matt">' +
+        '<div class="mt-namn">' + esc(info.namn) +
+        '<div class="mt-under">' + esc(cap(narText(lage.senaste.datum).text)) + ' · ' + lage.antal +
+        (lage.antal === 1 ? ' mätning' : ' mätningar') +
+        (info.riktning === 'ner' ? ' · lägre är bättre' : '') + '</div></div>' +
+        sparkline(lage.rader, info.riktning) +
+        '<div style="text-align:right">' +
+        '<div class="mt-varde">' + esc(fmtVarde(lage.senaste.varde, info)) + '</div>' +
+        (lage.sedanStart
+          ? '<div class="mt-diff ' + (lage.sedanStart.battre ? 'upp' : 'ner') + '">' +
+            esc(fmtMattDiff(lage.sedanStart.diff, info)) + ' sedan start</div>'
+          : '<div class="mt-diff dim">nollmätning</div>') +
+        '</div>' +
+        '<button class="p-bort" title="Ta bort den senaste mätningen" onclick="App.halsaMattBort(\'' + key + '\')">✕</button>' +
+        '</div>';
+    }
+  }
+  if(!harMatningar){
+    html += '<p class="small muted" style="margin-top:8px"><i>Inga mätningar ännu. Välj ett test nedan och gör en nollmätning — sedan har du något att bli bättre än.</i></p>';
+  }
+
+  if(!halsaForm.mattOpen){
+    html += '<div class="knapprad"><button class="btn small ghost" onclick="App.halsaVisaMattForm(true)">+ Logga en mätning</button>' +
+      (halsaForm.egetOpen ? '' : '<button class="btn small ghost" onclick="App.halsaVisaEgetForm(true)">+ Eget mått</button>') + '</div>';
+  } else {
+    /* testen grupperade per kategori, egna mått inlagda i sin grupp */
+    let optioner = '';
+    for(const kat of Object.keys(TESTKATEGORIER)){
+      const nycklar = testNycklar().filter(k => { const i = testInfo(k); return i && i.kategori === kat; });
+      if(!nycklar.length) continue;
+      optioner += '<optgroup label="' + esc(TESTKATEGORIER[kat].namn) + '">' +
+        nycklar.map(k => {
+          const i = testInfo(k);
+          return '<option value="' + esc(k) + '"' + (k === halsaForm.mattVald ? ' selected' : '') + '>' +
+            esc(i.namn) + ' (' + esc(i.enhet) + ')</option>';
+        }).join('') + '</optgroup>';
+    }
+    html += '<div class="ny-form" style="margin-top:10px">' +
+      '<select id="mattTest">' + optioner + '</select>' +
+      '<div class="ny-rad2">' +
+      '<input type="text" inputmode="decimal" id="mattVarde" placeholder="Värde" style="flex:1;min-width:110px" onkeydown="if(event.key===\'Enter\')App.halsaMattNy()">' +
+      '<input type="date" id="mattDatum" value="' + ts + '" style="flex:1">' +
+      '</div>' +
+      '<div class="knapprad"><button class="btn" onclick="App.halsaMattNy()">Spara mätningen</button>' +
+      '<button class="btn ghost" onclick="App.halsaVisaMattForm(false)">Avbryt</button></div></div>';
+  }
+
+  if(halsaForm.egetOpen){
+    html += '<div class="ny-form" style="margin-top:10px;border-top:1px solid var(--line-soft);padding-top:10px">' +
+      '<p class="small muted">Ett eget mått — vad som helst du vill följa över tid.</p>' +
+      '<input type="text" id="egetNamn" placeholder="Vad mäter du? (t.ex. Chins i rad)">' +
+      '<div class="ny-rad2">' +
+      '<select id="egetKategori" style="flex:1">' + Object.keys(TESTKATEGORIER).map(k =>
+        '<option value="' + k + '">' + TESTKATEGORIER[k].emoji + ' ' + esc(TESTKATEGORIER[k].namn) + '</option>').join('') + '</select>' +
+      '<input type="text" id="egetEnhet" placeholder="Enhet (st, sek, cm…)" style="flex:1;min-width:120px">' +
+      '</div>' +
+      '<select id="egetRiktning">' +
+      '<option value="upp">Högre siffra är bättre</option>' +
+      '<option value="ner">Lägre siffra är bättre</option>' +
+      '</select>' +
+      '<div class="knapprad"><button class="btn" onclick="App.halsaEgetNy()">Lägg till måttet</button>' +
+      '<button class="btn ghost" onclick="App.halsaVisaEgetForm(false)">Avbryt</button></div></div>';
+  }
+  if(h.egnaTester.length){
+    html += '<p class="small dim" style="margin-top:10px">Egna mått: ' +
+      h.egnaTester.map(t => esc(t.namn) + ' <button class="p-bort" style="font-size:12px" title="Ta bort måttet och dess mätningar" onclick="App.halsaEgetBort(\'' + t.id + '\')">✕</button>').join(' · ') +
+      '</p>';
+  }
+  html += '</div>';
+
   /* ---- vikten ---- */
   const alla = viktSorterad();
   const f30 = viktForandring(30);
-  html += '<div class="card"><h2>⚖️ Vikten</h2>';
+  html += '<div class="card"><h2>⚖️ Vikten</h2>' +
+    '<p class="small muted">En siffra bland andra, utan mål att jaga — det är formen ovanför som räknas.</p>';
   if(!alla.length){
-    html += '<p class="small muted"><i>Ingen vägning registrerad ännu — skriv in dagens vikt under Idag så börjar kurvan.</i></p>';
+    html += '<p class="small muted" style="margin-top:8px"><i>Ingen vägning registrerad ännu — skriv in dagens vikt under Idag så börjar kurvan.</i></p>';
   } else {
     const senaste90 = alla.filter(x => dagarTill(x.datum) >= -90);
-    const graf = viktGraf(senaste90.length >= 2 ? senaste90 : alla, h.mal.vikt);
+    const graf = viktGraf(senaste90.length >= 2 ? senaste90 : alla, null);
     if(graf){
       html += graf +
         '<p class="small dim" style="display:flex;justify-content:space-between;margin-top:-2px">' +
         '<span>' + esc(String((senaste90.length >= 2 ? senaste90 : alla)[0].datum)) + '</span>' +
-        (h.mal.vikt ? '<span style="color:var(--bronze)">– – målvikt ' + esc(fmtKg(h.mal.vikt)) + '</span>' : '<span></span>') +
         '<span>' + esc(String(v.datum)) + '</span></p>';
     }
     html += '<div class="rad" style="border-top:none"><span class="r-emoji">📍</span>' +
       '<span class="r-text">Senast: <b>' + esc(fmtKg(v.kg)) + '</b> <span class="dim">(' + esc(narText(v.datum).text) + ')</span></span></div>' +
       (f7 ? '<div class="rad"><span class="r-emoji">7️⃣</span><span class="r-text">Senaste veckan: <b>' + esc(fmtDiff(f7.kg)) + '</b></span></div>' : '') +
-      (f30 ? '<div class="rad"><span class="r-emoji">📅</span><span class="r-text">Senaste månaden: <b>' + esc(fmtDiff(f30.kg)) + '</b></span></div>' : '') +
-      (h.mal.vikt ? '<div class="rad"><span class="r-emoji">🎯</span><span class="r-text">Kvar till målvikten: <b>' +
-        esc(fmtKg(Math.abs(v.kg - h.mal.vikt))) + '</b>' + (Math.abs(v.kg - h.mal.vikt) < 0.05 ? ' — du är framme 🌿' : '') + '</span></div>' : '');
+      (f30 ? '<div class="rad"><span class="r-emoji">📅</span><span class="r-text">Senaste månaden: <b>' + esc(fmtDiff(f30.kg)) + '</b></span></div>' : '');
 
     const visade = halsaForm.visaAllVikt ? alla.slice().reverse() : alla.slice().reverse().slice(0, 7);
     html += '<div class="omr-rubrik" style="margin-top:12px"><h3>Vägningar</h3><span class="streck"></span></div>';
@@ -1803,10 +2276,6 @@ function renderHalsa(){
     '<div class="ny-rad2" style="align-items:center">' +
     '<span class="small muted" style="flex:1;min-width:120px">Pass per vecka</span>' +
     '<input type="number" id="malVeckopass" min="0" max="14" value="' + esc(String(h.mal.veckopass)) + '" style="width:92px">' +
-    '</div>' +
-    '<div class="ny-rad2" style="align-items:center">' +
-    '<span class="small muted" style="flex:1;min-width:120px">Målvikt (kg)</span>' +
-    '<input type="text" inputmode="decimal" id="malVikt" value="' + (h.mal.vikt ? esc(String(h.mal.vikt).replace('.', ',')) : '') + '" placeholder="–" style="width:92px">' +
     '</div>' +
     '<div class="ny-rad2" style="align-items:center">' +
     '<span class="small muted" style="flex:1;min-width:120px">Högst antal glas per vecka</span>' +
@@ -2571,8 +3040,8 @@ const App = {
     scheduleHalsaPush();
     renderHalsa();
     renderIdag();
-    const mal = state.halsa.mal.vikt;
-    toast('Antecknat: ' + fmtKg(rundad) + (mal ? ' · ' + fmtKg(Math.abs(rundad - mal)) + ' från målet' : ''));
+    const f = viktForandring(7);
+    toast('Antecknat: ' + fmtKg(rundad) + (f ? ' · ' + fmtDiff(f.kg) + ' på en vecka' : ''));
   },
   halsaViktBort(datum){
     state.halsa.vikt = state.halsa.vikt.filter(x => x.datum !== datum);
@@ -2631,14 +3100,215 @@ const App = {
     halsaForm.visaAllAlk = !halsaForm.visaAllAlk;
     renderHalsa();
   },
+  /* ---- mediciner & kosttillskott ---- */
+  halsaVisaMedForm(open){
+    halsaForm.medOpen = open;
+    if(open){
+      halsaForm.medSort = 'medicin';
+      halsaForm.medTider = ['morgon'];
+      halsaForm.medDagar = [];
+      halsaForm.medVidBehov = false;
+    }
+    renderHalsa();
+    if(open){ const el = document.getElementById('medNamn'); if(el) el.focus(); }
+  },
+  /* valen i formuläret byter bara knapparnas utseende — ingen omritning,
+     så det som redan skrivits i fälten står kvar */
+  halsaMedSort(sort){
+    halsaForm.medSort = sort;
+    const m = document.getElementById('medSortM'), tl = document.getElementById('medSortT');
+    if(m) m.className = sort === 'tillskott' ? '' : 'vald-ut';
+    if(tl) tl.className = sort === 'tillskott' ? 'vald-in' : '';
+  },
+  halsaMedTid(tid){
+    const i = halsaForm.medTider.indexOf(tid);
+    if(i >= 0) halsaForm.medTider.splice(i, 1); else halsaForm.medTider.push(tid);
+    const knapp = document.getElementById('medTid-' + tid);
+    if(knapp) knapp.className = halsaForm.medTider.includes(tid) ? 'vald' : '';
+  },
+  halsaMedDag(dag){
+    const i = halsaForm.medDagar.indexOf(dag);
+    if(i >= 0) halsaForm.medDagar.splice(i, 1); else halsaForm.medDagar.push(dag);
+    const knapp = document.getElementById('medDag-' + dag);
+    if(knapp) knapp.className = halsaForm.medDagar.includes(dag) ? 'vald' : '';
+  },
+  halsaMedVidBehov(el){
+    halsaForm.medVidBehov = !!el.checked;
+    const del = document.getElementById('medSchemaDel');
+    if(del) del.style.display = halsaForm.medVidBehov ? 'none' : '';
+  },
+  halsaMedNy(){
+    const namn = document.getElementById('medNamn').value.trim();
+    if(!namn){ toast('Skriv vad det heter först'); return; }
+    const vidBehov = halsaForm.medVidBehov;
+    if(!vidBehov && !halsaForm.medTider.length){ toast('Välj minst en tid på dygnet'); return; }
+    const start = document.getElementById('medStart').value || fmtDate(todayDate());
+    const slut = document.getElementById('medSlut').value || '';
+    if(slut && slut < start){ toast('Slutdatumet ligger före startdatumet'); return; }
+    state.halsa.mediciner.push({
+      id: 'm' + Date.now() + Math.random().toString(36).slice(2, 5),
+      namn: namn,
+      dos: document.getElementById('medDos').value.trim(),
+      sort: halsaForm.medSort === 'tillskott' ? 'tillskott' : 'medicin',
+      vidBehov: vidBehov,
+      tider: vidBehov ? [] : halsaForm.medTider.slice(),
+      dagar: vidBehov ? [] : halsaForm.medDagar.slice().sort((a, b) => a - b),
+      start: start,
+      slut: slut,
+      anteckning: document.getElementById('medAnteckning').value.trim(),
+      skapad: new Date().toISOString()
+    });
+    halsaForm.medOpen = false;
+    save();
+    scheduleHalsaPush();
+    renderHalsa();
+    renderIdag();
+    toast(vidBehov ? 'Inlagt — noteras när du tar den 💊' : 'Inlagt — dyker upp av sig självt varje dag 💊');
+  },
+  /* bocka av (eller ångra) en dos idag */
+  halsaDos(medId, tid){
+    const ts = fmtDate(todayDate());
+    const tagen = dosTagen(medId, ts, tid);
+    if(tagen){
+      state.halsa.intag = state.halsa.intag.filter(i => i !== tagen);
+    } else {
+      state.halsa.intag.push({
+        id: 'i' + Date.now() + Math.random().toString(36).slice(2, 5),
+        medicinId: medId, datum: ts, tid: tid, loggat: new Date().toISOString()
+      });
+    }
+    save();
+    scheduleHalsaPush();
+    renderHalsa();
+    renderIdag();
+  },
+  halsaVidBehovTagen(medId){
+    const m = state.halsa.mediciner.find(x => x.id === medId);
+    if(!m) return;
+    state.halsa.intag.push({
+      id: 'i' + Date.now() + Math.random().toString(36).slice(2, 5),
+      medicinId: medId, datum: fmtDate(todayDate()), tid: 'vidbehov', loggat: new Date().toISOString()
+    });
+    save();
+    scheduleHalsaPush();
+    renderHalsa();
+    toast('Noterat: ' + m.namn + ' 💊');
+  },
+  /* sluta ta något utan att förlora historiken */
+  halsaMedAvsluta(id){
+    const m = state.halsa.mediciner.find(x => x.id === id);
+    if(!m) return;
+    if(!confirm('Sluta ta ' + m.namn + ' från och med idag? Historiken ligger kvar.')) return;
+    m.slut = fmtDate(todayDate());
+    save();
+    scheduleHalsaPush();
+    renderHalsa();
+    renderIdag();
+    toast('Avslutad från och med idag');
+  },
+  halsaMedBort(id){
+    const m = state.halsa.mediciner.find(x => x.id === id);
+    if(!m) return;
+    if(!confirm('Ta bort ' + m.namn + ' helt, med alla avbockade doser?')) return;
+    state.halsa.mediciner = state.halsa.mediciner.filter(x => x.id !== id);
+    state.halsa.intag = state.halsa.intag.filter(i => i.medicinId !== id);
+    save();
+    scheduleHalsaPush();
+    renderHalsa();
+    renderIdag();
+  },
+  halsaToggleMedLista(){
+    halsaForm.visaMedLista = !halsaForm.visaMedLista;
+    renderHalsa();
+  },
+
+  /* ---- formen ---- */
+  halsaVisaMattForm(open){
+    halsaForm.mattOpen = open;
+    renderHalsa();
+    if(open){ const el = document.getElementById('mattVarde'); if(el) el.focus(); }
+  },
+  halsaMattNy(){
+    const key = document.getElementById('mattTest').value;
+    const info = testInfo(key);
+    const varde = Number(String(document.getElementById('mattVarde').value).replace(',', '.'));
+    if(!info){ toast('Välj vilket test det gäller'); return; }
+    if(isNaN(varde) || varde < 0){ toast('Skriv ett värde, t.ex. 18'); return; }
+    const datum = document.getElementById('mattDatum').value || fmtDate(todayDate());
+    const forsta = !matningarFor(key).length;
+    const lageInnan = testLage(key);
+    /* en mätning per test och dag — samma dag igen skriver över */
+    const finns = state.halsa.matningar.find(m => m.test === key && m.datum === datum);
+    if(finns) finns.varde = varde;
+    else state.halsa.matningar.push({
+      id: 'n' + Date.now() + Math.random().toString(36).slice(2, 5),
+      test: key, datum: datum, varde: varde
+    });
+    halsaForm.mattOpen = false;
+    halsaForm.mattVald = key;
+    save();
+    scheduleHalsaPush();
+    renderHalsa();
+    renderIdag();
+    if(forsta) toast('Nollmätning sparad — nu finns något att bli bättre än 🌿');
+    else if(lageInnan && lageInnan.senaste.datum !== datum){
+      const battre = info.riktning === 'ner' ? varde < lageInnan.senaste.varde : varde > lageInnan.senaste.varde;
+      toast(battre ? 'Bättre än förra gången 🌿' : 'Sparat — ' + fmtVarde(varde, info));
+    }
+    else toast('Sparat — ' + fmtVarde(varde, info));
+  },
+  halsaMattBort(key){
+    const rader = matningarFor(key);
+    if(!rader.length) return;
+    const sista = rader[rader.length - 1];
+    const info = testInfo(key);
+    if(!confirm('Ta bort den senaste mätningen (' + fmtVarde(sista.varde, info) + ', ' + sista.datum + ')?')) return;
+    state.halsa.matningar = state.halsa.matningar.filter(m => m !== sista);
+    save();
+    scheduleHalsaPush();
+    renderHalsa();
+    renderIdag();
+  },
+  halsaVisaEgetForm(open){
+    halsaForm.egetOpen = open;
+    renderHalsa();
+    if(open){ const el = document.getElementById('egetNamn'); if(el) el.focus(); }
+  },
+  halsaEgetNy(){
+    const namn = document.getElementById('egetNamn').value.trim();
+    if(!namn){ toast('Skriv vad måttet heter först'); return; }
+    const enhet = document.getElementById('egetEnhet').value.trim() || 'st';
+    const id = 'x' + Date.now() + Math.random().toString(36).slice(2, 5);
+    state.halsa.egnaTester.push({
+      id: id, namn: namn, enhet: enhet,
+      kategori: document.getElementById('egetKategori').value,
+      riktning: document.getElementById('egetRiktning').value === 'ner' ? 'ner' : 'upp'
+    });
+    halsaForm.egetOpen = false;
+    halsaForm.mattOpen = true;   /* logga första värdet direkt … */
+    halsaForm.mattVald = id;     /* … på det nya måttet, inte det översta i listan */
+    save();
+    scheduleHalsaPush();
+    renderHalsa();
+    toast('Måttet är inlagt — skriv in första värdet');
+  },
+  halsaEgetBort(id){
+    const t = state.halsa.egnaTester.find(x => x.id === id);
+    if(!t) return;
+    if(!confirm('Ta bort måttet "' + t.namn + '" och alla dess mätningar?')) return;
+    state.halsa.egnaTester = state.halsa.egnaTester.filter(x => x.id !== id);
+    state.halsa.matningar = state.halsa.matningar.filter(m => m.test !== id);
+    if(halsaForm.mattVald === id) halsaForm.mattVald = null;
+    save();
+    scheduleHalsaPush();
+    renderHalsa();
+  },
+
   halsaMalSpara(){
     const pass = Number(document.getElementById('malVeckopass').value);
-    const viktRaw = String(document.getElementById('malVikt').value).replace(',', '.').trim();
     const glas = Number(document.getElementById('malVeckoglas').value);
     state.halsa.mal.veckopass = (pass >= 0 && pass <= 14) ? pass : state.halsa.mal.veckopass;
     state.halsa.mal.veckoglas = (glas >= 0 && glas <= 40) ? glas : state.halsa.mal.veckoglas;
-    state.halsa.mal.vikt = viktRaw === '' ? null
-      : ((Number(viktRaw) >= 20 && Number(viktRaw) <= 300) ? Math.round(Number(viktRaw) * 10) / 10 : state.halsa.mal.vikt);
     save();
     scheduleHalsaPush();
     renderHalsa();
@@ -3111,6 +3781,38 @@ const App = {
           const finns = state.halsa.alkohol.find(a => a.datum === datum);
           if(finns){ finns.glas = glas; if(p.vad) finns.vad = String(p.vad); }
           else state.halsa.alkohol.push({ datum: datum, glas: glas, vad: p.vad ? String(p.vad) : '' });
+          halsaAndrat = true;
+        } else if(p.action === 'medicin_tagen' && p.matcha_medicin){
+          const sok = String(p.matcha_medicin).toLowerCase();
+          const m = state.halsa.mediciner.find(x => String(x.namn).toLowerCase().includes(sok) && medPagar(x, datum));
+          if(!m){ extra += ' (Jag hittade ingen medicin som matchade, så inget bockades av.)'; continue; }
+          /* uttalad tid, annars dagens första otagna dos — vid behov-preparat
+             loggas alltid som ett extra intag */
+          let tid = DOSTIDER[p.tid] ? p.tid : null;
+          if(!tid && !m.vidBehov){
+            const otagen = dagensDoser(datum).find(d => d.medicin.id === m.id && !dosTagen(m.id, datum, d.tid));
+            tid = otagen ? otagen.tid : null;
+          }
+          if(!tid) tid = m.vidBehov ? 'vidbehov' : (m.tider && m.tider[0]) || 'morgon';
+          if(m.vidBehov || !dosTagen(m.id, datum, tid)){
+            state.halsa.intag.push({
+              id: 'i' + Date.now() + Math.random().toString(36).slice(2, 5),
+              medicinId: m.id, datum: datum, tid: tid, loggat: new Date().toISOString()
+            });
+            halsaAndrat = true;
+          }
+        } else if(p.action === 'matning' && p.test && Number.isFinite(Number(p.varde))){
+          const sok = String(p.test).toLowerCase();
+          const key = testInfo(sok) ? sok
+            : testNycklar().find(k => String((testInfo(k) || {}).namn).toLowerCase().includes(sok));
+          if(!key){ extra += ' (Jag hittade inget formmått som matchade, så mätningen sparades inte.)'; continue; }
+          const varde = Number(p.varde);
+          const finns = state.halsa.matningar.find(m => m.test === key && m.datum === datum);
+          if(finns) finns.varde = varde;
+          else state.halsa.matningar.push({
+            id: 'n' + Date.now() + Math.random().toString(36).slice(2, 5),
+            test: key, datum: datum, varde: varde
+          });
           halsaAndrat = true;
         } else if(p.action === 'pass' && p.namn){
           state.halsa.pass.push({
