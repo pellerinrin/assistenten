@@ -1,6 +1,6 @@
 # Assistenten 🖋
 
-Din stillsamma sekreterare — en installerbar PWA som samlar hela vardagen på ett ställe: barnen, karriären, hushållet och hälsan. Varje morgon lämnar den en **morgonbrief** över dagen, håller **bevakningar** på saker med och utan datum, och sammanfattar **mejlen**.
+Din stillsamma sekreterare — en installerbar PWA som samlar hela vardagen på ett ställe: barnen, karriären, hushållet och hälsan. Varje morgon lämnar den en **morgonbrief** över dagen, håller **bevakningar** på saker med och utan datum, sammanfattar **mejlen** och håller ordning på **träning, vikt och alkohol**.
 
 ## Så hänger allt ihop
 
@@ -29,11 +29,24 @@ Bearer-token identifierar direkt vem det är; assistentens egna nycklar plus lä
 - `assistent-ekonomi-poster` — `[{ id, typ: in|ut, beskrivning, belopp, forfallodatum, status, klarNar?, bilaga? }]` (Ekonomi-fliken; `status: "klar"` = arkiverad för alltid, aldrig raderad automatiskt)
 - `assistent-ekonomi-saldon` — `[{ konto, belopp, uppdaterad }]` (kända kontosaldon)
 - `assistent-bilaga-<postId>` — `{ namn, typ, data (dataURL), uppladdad }` — fakturafoton/PDF:er, komprimerade i webbläsaren; hämtas styckvis med `?bilaga=<postId>` och raderas (via `radera_bilaga`) när posten bockas av — bilden är färskvara, uppgifterna arkiveras för alltid. Bifogar man en faktura i *Ny post* läser assistenten av den (bild-/PDF-block till AI:n) och fyller i tomma fält (typ, beskrivning, belopp, förfallodatum) automatiskt. `/api/assistent` tillåter AI-anrop upp till 4 MB (bilder/PDF) medan vanliga skrivningar hålls små.
+- `assistent-halsa` — Hälsa-fliken: `{ schema: [{id, dag (0=måndag), namn, typ, minuter}], pass: [{id, datum, namn, typ, minuter, schemaId?}], vikt: [{datum, kg}], alkohol: [{datum, glas, vad}], mal: {vikt, veckopass, veckoglas} }`. `schema` är veckan som återkommer, `pass` de genomförda passen (ett med `schemaId` = ett schemalagt pass avbockat den dagen). En vägning och en alkoholrad per datum — noteras samma dag igen skrivs den över. Skrivs bara av den här appen; ett tomt svar från API:t rör aldrig det som redan ligger i telefonen, så data överlever även innan servern känner till nyckeln.
 - `assistent-profil` — `{ uppdaterad, text }` — assistentens egna anteckningar om Anna, skrivs av morgonjobbet och läses av chattarna; visas aldrig i appens gränssnitt
 - `assistent-intervjuer` — `{ halsa|karriar|varderingar: { svar: {frageId: text}, utlatande?, uppdaterad } }` — tre frågeformulär under Mer (fasta frågor, se `INTERVJUER` i index.html), svaren fylls i direkt i textfält och sparas automatiskt (inget AI-samtal krävs); en knapp låter assistenten sammanfatta ifyllda svar till ett `utlatande` som Anna redigerar fritt och sparar själv — hennes sparade text är det som vävs in i chattarna och morgonbriefen
 - `assistent-samtal-ÅÅÅÅ-MM` — samtalsloggen per månad `[{ id, t, roll: jag|ass, kanal: prata|ekonomi, text }]`; skrivs via `logga`-operationen (dubblettskydd på id), raderas bara via `radera_samtal`
 
 Båda chattarna — "Prata med mig" på förstasidan och Ekonomi-flikens — skickar `POST { ai: { system, messages } }` (med Bearer-token) till samma API; servern vidarebefordrar till Anthropic och räknar anropet mot kontots dagliga AI-tak (delas med Skrivbordet).
+
+## Hälsa-fliken 🌿
+
+Tre saker på ett ställe, alla lika enkla att fylla i på en telefon:
+
+- **Träningsschemat** — veckan som återkommer (pass per veckodag med typ och längd). Dagens pass dyker upp både under Hälsa och i "Läget idag", och bockas av med ett tryck; ett tryck till ångrar. Pass utanför schemat loggas separat, även i efterhand.
+- **Vikten** — en vägning per dag, kurva över de senaste tre månaderna med målvikten som streckad linje, samt förändring på 7 och 30 dagar. Viktfälten är textfält med decimaltangentbord, så ett svenskt kommatecken funkar (ett `type=number` kastar tyst bort "68,4").
+- **Alkoholen** — antal standardglas per dag, fyra veckor tillbaka som ett rutnät, veckosumma mot ett eget tak och tiden sedan senaste glaset. En alkoholfri dag noteras med en knapp.
+
+> **Obs:** själva synkningen kräver att `api/assistent.js` i skrivbordet-repot släpper igenom nyckeln `assistent-halsa` (läsa i GET-svaret, skriva via `skriv`) — det är ett annat repo. Tills det är på plats fungerar fliken ändå fullt ut, men bara på den telefon som skrivit in uppgifterna: appen sparar alltid lokalt först och skickar upp i bakgrunden när servern tar emot.
+
+Målen (pass per vecka, målvikt, högsta antal glas per vecka) sätts längst ned på fliken. Chatten på förstasidan ser sammanfattningen av allt detta och kan notera åt dig — "jag vägde 68,4 i morse", "det blev två glas igår", "jag hann med löprundan" — via fältet `halsa` i svarsverktyget. Allt sparas lokalt direkt och synkas till kontot under `assistent-halsa`.
 
 Förstasidans chatt kan även användas med rösten: mikrofonknappen använder webbläsarens taligenkänning (`SpeechRecognition`, sv-SE) och svar på röstfrågor läses upp med `speechSynthesis`. Chatten känner till hela dagsläget (brief, bevakningar, barnens vecka, jobbresor, karriärmål, ekonomi, mejl) och kan lägga till och bocka av bevakningar via `action`-fältet i AI-svaret.
 

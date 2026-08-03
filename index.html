@@ -170,6 +170,40 @@ input:focus,select:focus,textarea:focus{outline:none; border-color:var(--bronze)
 .las-upp{border:none; background:none; cursor:pointer; font-size:13px; padding:0 2px; opacity:.7}
 .las-upp:hover{opacity:1}
 
+/* ---- hälsa ---- */
+.halsa-grid{display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-bottom:14px}
+.halsa-tal{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:10px 11px; box-shadow:var(--shadow)}
+.halsa-tal .ht-etikett{font-size:11.5px; color:var(--ink-soft); margin-bottom:2px}
+.halsa-tal .ht-varde{font-family:Georgia,serif; font-weight:600; font-size:15.5px; white-space:nowrap}
+.halsa-tal .ht-under{font-size:11.5px; color:var(--ink-dim); margin-top:1px}
+.pass{display:flex; gap:10px; align-items:center; padding:9px 2px; border-top:1px solid var(--line-soft)}
+.pass:first-of-type{border-top:none}
+.pass .pa-text{flex:1; min-width:0; font-size:14.5px}
+.pass .pa-dag{font-size:12.5px; color:var(--ink-dim); font-style:italic}
+.pass.gjort .pa-text{color:var(--ink-dim)}
+.pass .pa-gor{border:1px solid var(--green); background:none; color:var(--green); border-radius:8px; width:30px; height:30px; cursor:pointer; flex:none; font-size:15px}
+.pass .pa-gor.klar{background:var(--green); color:#fdfbf4}
+.dagvalj{display:flex; gap:5px; flex-wrap:wrap}
+.dagvalj button{
+  border:1px solid var(--line); background:#fff; color:var(--ink-soft);
+  border-radius:9px; padding:7px 0; font-size:13px; cursor:pointer; flex:1; min-width:38px;
+}
+.dagvalj button.vald{border-color:var(--green); background:var(--green); color:#fdfbf4}
+.snabbrad{display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:8px}
+.snabbrad input[type=number]{width:92px}
+.graf{width:100%; height:96px; display:block; margin:6px 0 2px; overflow:visible}
+.graf .linje{fill:none; stroke:var(--green); stroke-width:2; stroke-linejoin:round; stroke-linecap:round}
+.graf .mal{stroke:var(--bronze); stroke-width:1; stroke-dasharray:3 3}
+.graf .punkt{fill:var(--green)}
+.graf text{font-size:9px; fill:var(--ink-dim); font-family:inherit}
+.alk-rutnat{display:grid; grid-template-columns:repeat(14,1fr); gap:4px; margin:8px 0 4px}
+.alk-dag{aspect-ratio:1; border-radius:5px; border:1px solid var(--line); background:#fff}
+.alk-dag.fri{background:#e5ece3; border-color:#c9d8c6}
+.alk-dag.latt{background:#e8d9be; border-color:#d9c39b}
+.alk-dag.mycket{background:var(--terra); border-color:var(--terra)}
+.alk-dag.idag{box-shadow:0 0 0 2px var(--bronze)}
+.streck-lista{display:flex; flex-direction:column}
+
 /* ---- knappar ---- */
 .btn{
   border:1px solid var(--green); background:var(--green); color:#fdfbf4;
@@ -194,7 +228,7 @@ input:focus,select:focus,textarea:focus{outline:none; border-color:var(--bronze)
 .tabs button{
   border:none; background:none; color:var(--ink-dim); cursor:pointer;
   display:flex; flex-direction:column; align-items:center; gap:1px;
-  font-size:19px; padding:4px 14px; border-radius:10px;
+  font-size:19px; padding:4px 9px; border-radius:10px;
 }
 .tabs button span{font-size:11px; letter-spacing:.02em}
 .tabs button.aktiv{color:var(--green); background:#eef0e6}
@@ -221,6 +255,7 @@ input:focus,select:focus,textarea:focus{outline:none; border-color:var(--bronze)
 <main>
   <div id="view-idag" class="view"></div>
   <div id="view-bevaka" class="view"></div>
+  <div id="view-halsa" class="view"></div>
   <div id="view-ekonomi" class="view"></div>
   <div id="view-mejl" class="view"></div>
   <div id="view-mer" class="view"></div>
@@ -230,6 +265,7 @@ input:focus,select:focus,textarea:focus{outline:none; border-color:var(--bronze)
 <nav class="tabs">
   <button id="tab-idag" onclick="App.go('idag')">☕<span>Idag</span></button>
   <button id="tab-bevaka" onclick="App.go('bevaka')">🗒️<span>Bevaka</span></button>
+  <button id="tab-halsa" onclick="App.go('halsa')">🌿<span>Hälsa</span></button>
   <button id="tab-ekonomi" onclick="App.go('ekonomi')">💰<span>Ekonomi</span></button>
   <button id="tab-mejl" onclick="App.go('mejl')">✉️<span>Mejl</span></button>
   <button id="tab-mer" onclick="App.go('mer')">⚙️<span>Mer</span></button>
@@ -377,6 +413,8 @@ let state = {
   ekonomiPoster: [], /* lokal spegel av ekonomiposterna (in/ut med förfallodatum) */
   ekonomiSaldon: [], /* kända kontosaldon: [{konto, belopp, uppdaterad}] */
   ekonomiDirty: false,
+  halsa: null,       /* träningsschema, genomförda pass, vikt och alkohol — se halsaNorm() */
+  halsaDirty: false,
   briefDirty: false, /* osparad "avklarat"-markering på dagens brief */
   visaFramtid: false, /* visa bevakningar som ligger långt fram i tiden */
   notified: {},
@@ -385,11 +423,31 @@ let state = {
   utkorg: [],        /* samtalsrader som ännu inte kvitterats av servern */
 };
 
+/* Hälsodelen växer med tiden — normalisera alltid det som lästs in (från
+   localStorage eller kontot) så vyerna slipper leta efter fält som saknas
+   i data sparad av en äldre version. */
+function halsaNorm(h){
+  const k = (h && typeof h === 'object') ? h : {};
+  const mal = (k.mal && typeof k.mal === 'object') ? k.mal : {};
+  return {
+    schema:  Array.isArray(k.schema)  ? k.schema  : [],
+    pass:    Array.isArray(k.pass)    ? k.pass    : [],
+    vikt:    Array.isArray(k.vikt)    ? k.vikt    : [],
+    alkohol: Array.isArray(k.alkohol) ? k.alkohol : [],
+    mal: {
+      vikt:      (mal.vikt === null || mal.vikt === undefined || mal.vikt === '') ? null : Number(mal.vikt),
+      veckopass: Number(mal.veckopass) > 0 ? Number(mal.veckopass) : 3,
+      veckoglas: Number(mal.veckoglas) >= 0 ? Number(mal.veckoglas) : 9
+    }
+  };
+}
+
 function load(){
   try{
     const raw = localStorage.getItem(LS_KEY);
     if(raw) state = Object.assign(state, JSON.parse(raw));
   }catch(e){ /* börja om från tomt */ }
+  state.halsa = halsaNorm(state.halsa);
 }
 function save(){
   try{
@@ -414,6 +472,7 @@ async function hamta(force){
     /* osparade bevakningar/ekonomiposter/samtal åker upp först, så inget skrivs över */
     if(state.posterDirty) await pushPoster();
     if(state.ekonomiDirty) await pushEkonomi();
+    if(state.halsaDirty) await pushHalsa();
     if(state.briefDirty) await pushBrief();
     if(state.utkorg.length) await pushLogg();
     const token = await friskToken();
@@ -440,6 +499,13 @@ async function hamta(force){
       state.samtal = state.data.samtal;
       delete state.data.samtal; /* ligger i state.samtal — ingen dubbellagring */
     }
+    /* hälsan skrivs bara här i appen: kontot vinner när det har något att
+       säga, men ett tomt svar (t.ex. en server som ännu inte känner till
+       nyckeln) får aldrig radera det som ligger i telefonen */
+    if(!state.halsaDirty && state.data.halsa && typeof state.data.halsa === 'object'){
+      state.halsa = halsaNorm(state.data.halsa);
+    }
+    delete state.data.halsa;
     save();
     renderAll();
     checkNotiser();
@@ -577,6 +643,29 @@ async function pushEkonomi(){
   }
 }
 
+let halsaTimer = null;
+function scheduleHalsaPush(){
+  state.halsaDirty = true;
+  save();
+  clearTimeout(halsaTimer);
+  halsaTimer = setTimeout(pushHalsa, 1200);
+}
+async function pushHalsa(){
+  if(!session) return;
+  try{
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: authHeaders(),
+      body: JSON.stringify({ skriv: { 'assistent-halsa': state.halsa } })
+    });
+    if(!res.ok) throw new Error('http ' + res.status);
+    state.halsaDirty = false;
+    save();
+  }catch(e){
+    /* allt ligger kvar lokalt och skickas om vid nästa hämtning */
+  }
+}
+
 /* ================= Notiser (medan appen är öppen) ================= */
 function notiserPa(){ return ('Notification' in window) && Notification.permission === 'granted'; }
 function fireNotis(title, body, key){
@@ -596,6 +685,10 @@ function checkNotiser(){
   const b = state.data.brief;
   if(b && b.datum === ts) once('b-' + b.datum, () =>
     fireNotis('Assistenten ☕', 'Morgonbriefen är klar – slå dig ner en stund.', 'b-' + b.datum));
+  /* dagens träningspass, om det ännu inte är avbockat */
+  const kvarIdag = schemaForDag(wIdx(todayDate())).filter(s => !schemapassGjort(s.id, ts));
+  if(kvarIdag.length) once('t-' + ts, () =>
+    fireNotis('Assistenten 🌿', 'Träning idag: ' + kvarIdag.map(s => s.namn).join(', '), 't-' + ts));
   /* bevakningar med datum: imorgon och på dagen */
   for(const p of state.poster){
     if(p.klar || !p.datum) continue;
@@ -778,6 +871,21 @@ function renderIdag(){
     const nasta = resor.filter(r => r.start > ts).sort((a,b) => a.start.localeCompare(b.start))[0];
     if(nasta && dagarTill(nasta.start) <= 14) lage += radHtml('🧳', 'Nästa jobbresa: ' + esc(nasta.label || 'Jobbresa'), narText(nasta.start));
   }
+  /* hälsan: dagens träningspass och en påminnelse om vägningen */
+  const dagensPass = schemaForDag(wIdx(t));
+  const kvarIdag = dagensPass.filter(s => !schemapassGjort(s.id, ts));
+  if(kvarIdag.length){
+    lage += radHtml(passEmoji(kvarIdag[0].typ), 'Träning idag: ' + esc(kvarIdag.map(s => s.namn).join(', ')) +
+      ' <span class="dim">(bocka av under Hälsa)</span>');
+  } else if(passForDatum(ts).length){
+    lage += radHtml('🌿', 'Dagens träning är avklarad — ' +
+      passIVeckan(t).length + ' av ' + state.halsa.mal.veckopass + ' pass den här veckan');
+  }
+  const sistaVikt = viktSenaste();
+  if(sistaVikt && dagarTill(sistaVikt.datum) <= -7){
+    lage += radHtml('⚖️', Math.abs(dagarTill(sistaVikt.datum)) + ' dagar sedan du vägde dig sist');
+  }
+
   const sb = d.skrivbordet || {};
   if(sb.deadline){
     const n = dagarTill(sb.deadline);
@@ -1020,6 +1128,7 @@ function prataSystemPrompt(){
     'Ekonomi, väntande poster (in = ska faktureras/komma in, ut = ska betalas): ' +
     JSON.stringify(state.ekonomiPoster.map(p => ({ typ: p.typ, beskrivning: p.beskrivning, belopp: p.belopp, forfallodatum: p.forfallodatum }))) +
     ' Saldon: ' + JSON.stringify(state.ekonomiSaldon) + '\n' +
+    'Hälsan (Hälsa-fliken — träningsschema, vikt och alkohol):\n' + halsaSammanfattning() + '\n' +
     'Ur mejlen: viktiga: ' + JSON.stringify((mejl.viktiga || []).slice(0, 8)) +
     ' obesvarade: ' + JSON.stringify((mejl.obesvarade || []).slice(0, 8)) +
     ' datum som hittats: ' + JSON.stringify((mejl.datumfynd || []).slice(0, 10)) +
@@ -1036,6 +1145,7 @@ function prataSystemPrompt(){
     '- Säger Anna att en eller flera saker är gjorda/klara: lista i "matcha_texter" en ordagrann del av varje befintlig bevaknings text som ska bockas av. Vill hon flytta fram, döpa om eller ändra en bevakning (inte bocka av): använd "andra_bevakningar" med matcha + ny_text/nytt_datum. Finns ingen träff, ställ en följdfråga i stället — men gissa inte.\n' +
     '- Efter att svara har körts avslutas din tur — det finns inget "nästa steg" du kommer ihåg till senare. Behöver du öppna en sida eller söka: gör det INNAN du anropar svara, i samma tur. Säg aldrig "jag gör det i nästa steg" eller liknande.\n' +
     '- Ekonomi kan du sköta direkt härifrån med fältet "ekonomi" i svara: ny_post (räkning/faktura med beskrivning, belopp, forfallodatum; redan_klar true om den redan är betald/mottagen), markera_klar (matcha_beskrivning mot en väntande post) och uppdatera_saldo. Detaljerad genomgång av ekonomin finns också i fliken Ekonomi.\n' +
+    '- Hälsan sköter du med fältet "halsa" i svara: vikt (kg + datum), alkohol (antal glas en viss dag, 0 = alkoholfri dag) och pass (ett genomfört träningspass). Säger Anna "jag vägde 68 kilo i morse", "det blev två glas vin igår" eller "jag hann med styrkepasset" — notera det direkt, en post per sak, och bekräfta kort. Kommentera aldrig hennes vikt eller drickande moraliserande; håll dig till det hon frågar efter.\n' +
     '- Berättar Anna något varaktigt om sig själv eller sina projekt som du bör minnas framöver (inte en uppgift med datum): spara en kort rad i "anteckning" — den hamnar i dina egna anteckningar om henne.\n' +
     '- Klistrar Anna in en länk hämtas sidans text automatiskt åt dig och ligger i ett textblock i meddelandet. Vill du läsa mer (undersidor, källor) — använd oppna_lank. Låtsas aldrig att du läst något du inte fått innehåll för.\n' +
     '- Är något oklart: ställ en kort följdfråga i "svar" i stället för att ändra något.\n' +
@@ -1100,6 +1210,24 @@ const PRATA_TOOL = {
             },
             saldo: { type: 'object', properties: { konto: { type: 'string' }, belopp: { type: 'number' } } },
             matcha_beskrivning: { type: 'string' }
+          },
+          required: ['action']
+        }
+      },
+      halsa: {
+        type: 'array',
+        description: 'Hälsonoteringar: vägningar, alkohol och genomförda träningspass.',
+        items: {
+          type: 'object',
+          properties: {
+            action: { type: 'string', enum: ['vikt', 'alkohol', 'pass'] },
+            datum: { type: ['string', 'null'], description: 'ÅÅÅÅ-MM-DD. Utelämna för idag.' },
+            kg: { type: ['number', 'null'], description: 'Vikt i kilo (action vikt).' },
+            glas: { type: ['number', 'null'], description: 'Antal standardglas den dagen, 0 för en alkoholfri dag (action alkohol).' },
+            vad: { type: ['string', 'null'], description: 'Kort notering om tillfället (action alkohol).' },
+            namn: { type: ['string', 'null'], description: 'Vad passet var, t.ex. "Styrka, ben" (action pass).' },
+            typ: { type: ['string', 'null'], enum: ['styrka', 'kondition', 'promenad', 'rorlighet', 'annat', null] },
+            minuter: { type: ['number', 'null'] }
           },
           required: ['action']
         }
@@ -1319,6 +1447,378 @@ function renderIntervju(){
   el.innerHTML = html;
   const ta = document.getElementById('svarText');
   if(ta) ta.focus();
+}
+
+/* ================= Hälsa ================= */
+/* Tre saker på ett ställe: ett återkommande träningsschema (veckodagar) med
+   avbockning per dag, vikten över tid och alkoholen dag för dag. Allt bor i
+   state.halsa och synkas till kontot under nyckeln assistent-halsa. */
+const PASSTYPER = {
+  styrka:    { namn: 'Styrka',            emoji: '🏋️' },
+  kondition: { namn: 'Kondition',         emoji: '🏃' },
+  promenad:  { namn: 'Promenad',          emoji: '🚶' },
+  rorlighet: { namn: 'Yoga & rörlighet',  emoji: '🧘' },
+  annat:     { namn: 'Annat',             emoji: '🌿' },
+};
+function passEmoji(typ){ return (PASSTYPER[typ] || PASSTYPER.annat).emoji; }
+
+let halsaForm = { passOpen: false, schemaOpen: false, schemaDag: null, visaAllVikt: false, visaAllAlk: false };
+
+/* ---- träningen ---- */
+function veckoStart(d){ return addDays(d, -wIdx(d)); }
+function schemaForDag(dag){ return state.halsa.schema.filter(s => s.dag === dag); }
+function passForDatum(ds){ return state.halsa.pass.filter(p => p.datum === ds); }
+/* har ett visst schemalagt pass bockats av en viss dag? */
+function schemapassGjort(schemaId, ds){
+  return state.halsa.pass.find(p => p.datum === ds && p.schemaId === schemaId) || null;
+}
+function passIVeckan(d){
+  const start = fmtDate(veckoStart(d)), slut = fmtDate(addDays(veckoStart(d), 6));
+  return state.halsa.pass.filter(p => p.datum >= start && p.datum <= slut);
+}
+/* ---- vikten ---- */
+function viktSorterad(){ return state.halsa.vikt.slice().sort((a, b) => String(a.datum).localeCompare(String(b.datum))); }
+function viktSenaste(){ const v = viktSorterad(); return v.length ? v[v.length - 1] : null; }
+/* närmaste vägning på eller före ett visst datum — så "sedan 30 dagar" går
+   att svara på även när det inte vägts exakt den dagen */
+function viktVid(ds){
+  const v = viktSorterad().filter(x => x.datum <= ds);
+  return v.length ? v[v.length - 1] : null;
+}
+function viktForandring(dagar){
+  const senaste = viktSenaste();
+  if(!senaste) return null;
+  const da = fmtDate(addDays(parseDate(senaste.datum), -dagar));
+  const tidigare = viktVid(da);
+  if(!tidigare || tidigare.datum === senaste.datum) return null;
+  return { kg: Math.round((senaste.kg - tidigare.kg) * 10) / 10, fran: tidigare };
+}
+function fmtKg(n){ return (Math.round(Number(n) * 10) / 10).toFixed(1).replace('.', ',') + ' kg'; }
+function fmtDiff(n){ return (n > 0 ? '+' : n < 0 ? '−' : '±') + fmtKg(Math.abs(n)); }
+
+/* Enkel kurva över vikten. Ritas utan proportionsbevarande så den fyller
+   bredden; linjen får non-scaling-stroke så den inte blir tjockare av
+   sträckningen, och alla siffror står i HTML utanför grafen. */
+function viktGraf(punkter, mal){
+  if(punkter.length < 2) return '';
+  const W = 300, H = 96, pad = 6;
+  const xs = punkter.map(p => parseDate(p.datum).getTime());
+  const minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs);
+  const varden = punkter.map(p => Number(p.kg)).concat(mal ? [Number(mal)] : []);
+  let minY = Math.min.apply(null, varden), maxY = Math.max.apply(null, varden);
+  if(maxY - minY < 1){ const mitt = (maxY + minY) / 2; minY = mitt - 0.5; maxY = mitt + 0.5; }
+  const marg = (maxY - minY) * 0.15;
+  minY -= marg; maxY += marg;
+  const x = (t) => maxX === minX ? W / 2 : pad + (W - 2 * pad) * (t - minX) / (maxX - minX);
+  const y = (v) => pad + (H - 2 * pad) * (1 - (v - minY) / (maxY - minY));
+  const linje = punkter.map(p => x(parseDate(p.datum).getTime()).toFixed(1) + ',' + y(Number(p.kg)).toFixed(1)).join(' ');
+  return '<svg class="graf" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true">' +
+    (mal ? '<line class="mal" vector-effect="non-scaling-stroke" x1="0" x2="' + W + '" y1="' + y(Number(mal)).toFixed(1) + '" y2="' + y(Number(mal)).toFixed(1) + '"></line>' : '') +
+    '<polyline class="linje" vector-effect="non-scaling-stroke" points="' + linje + '"></polyline>' +
+    '</svg>';
+}
+
+/* ---- alkoholen ---- */
+function alkoholForDatum(ds){
+  return state.halsa.alkohol.filter(a => a.datum === ds).reduce((s, a) => s + (Number(a.glas) || 0), 0);
+}
+function alkoholRegistrerad(ds){ return state.halsa.alkohol.some(a => a.datum === ds); }
+function alkoholIVeckan(d){
+  const start = fmtDate(veckoStart(d)), slut = fmtDate(addDays(veckoStart(d), 6));
+  return state.halsa.alkohol.filter(a => a.datum >= start && a.datum <= slut)
+    .reduce((s, a) => s + (Number(a.glas) || 0), 0);
+}
+/* dagar sedan senaste glaset — tydligare än en svit som bryts av dagar
+   utan registrering (många noterar bara de dagar det faktiskt blir något) */
+function dagarSedanGlas(){
+  const med = state.halsa.alkohol.filter(a => (Number(a.glas) || 0) > 0)
+    .sort((a, b) => String(a.datum).localeCompare(String(b.datum)));
+  if(!med.length) return null;
+  return { dagar: dagarTill(med[med.length - 1].datum) * -1, datum: med[med.length - 1].datum };
+}
+function alkKlass(glas, registrerad){
+  if(!registrerad) return '';
+  if(glas === 0) return 'fri';
+  if(glas <= 2) return 'latt';
+  return 'mycket';
+}
+
+/* En kompakt sammanfattning som chatten och morgonbriefen kan läsa. */
+function halsaSammanfattning(){
+  const t = todayDate();
+  const h = state.halsa;
+  const veckansPass = passIVeckan(t);
+  const v = viktSenaste();
+  const f7 = viktForandring(7), f30 = viktForandring(30);
+  const sedan = dagarSedanGlas();
+  const rader = [];
+  rader.push('Träningsschema: ' + (h.schema.length
+    ? h.schema.map(s => WDAYS[s.dag] + ' ' + s.namn + (s.minuter ? ' (' + s.minuter + ' min)' : '')).join('; ')
+    : 'inget upplagt'));
+  rader.push('Pass denna vecka: ' + veckansPass.length + ' av målet ' + h.mal.veckopass +
+    (veckansPass.length ? ' (' + veckansPass.map(p => p.namn).join(', ') + ')' : ''));
+  rader.push('Vikt: ' + (v ? v.kg + ' kg (' + v.datum + ')' +
+    (f7 ? ', ' + (f7.kg > 0 ? '+' : '') + f7.kg + ' kg på 7 dagar' : '') +
+    (f30 ? ', ' + (f30.kg > 0 ? '+' : '') + f30.kg + ' kg på 30 dagar' : '') +
+    (h.mal.vikt ? ', målvikt ' + h.mal.vikt + ' kg' : '')
+    : 'ingen vägning registrerad'));
+  rader.push('Alkohol: ' + alkoholIVeckan(t) + ' glas denna vecka (mål högst ' + h.mal.veckoglas + '), ' +
+    (sedan ? (sedan.dagar === 0 ? 'senast idag' : sedan.dagar + ' dagar sedan senaste glaset') : 'inget registrerat ännu'));
+  return rader.join('\n');
+}
+
+function halsaTal(etikett, varde, under, farg){
+  return '<div class="halsa-tal"><div class="ht-etikett">' + esc(etikett) + '</div>' +
+    '<div class="ht-varde"' + (farg ? ' style="color:' + farg + '"' : '') + '>' + varde + '</div>' +
+    (under ? '<div class="ht-under">' + under + '</div>' : '') + '</div>';
+}
+
+function renderHalsa(){
+  const el = document.getElementById('view-halsa');
+  const t = todayDate();
+  const ts = fmtDate(t);
+  const h = state.halsa;
+  let html = '';
+
+  /* ---- veckans siffror ---- */
+  const veckansPass = passIVeckan(t);
+  const v = viktSenaste();
+  const f7 = viktForandring(7);
+  const glasVecka = alkoholIVeckan(t);
+  html += '<div class="halsa-grid">' +
+    halsaTal('Pass denna vecka', veckansPass.length + '<span class="dim" style="font-size:12.5px"> / ' + h.mal.veckopass + '</span>',
+      veckansPass.length >= h.mal.veckopass ? 'målet nått 🌿' : (h.mal.veckopass - veckansPass.length) + ' kvar',
+      veckansPass.length >= h.mal.veckopass ? 'var(--green)' : null) +
+    halsaTal('Vikt', v ? esc(fmtKg(v.kg)) : '–',
+      v ? (f7 ? esc(fmtDiff(f7.kg)) + ' på 7 dgr' : esc(narText(v.datum).text)) : 'ingen vägning',
+      null) +
+    halsaTal('Glas denna vecka', glasVecka + '<span class="dim" style="font-size:12.5px"> / ' + h.mal.veckoglas + '</span>',
+      glasVecka > h.mal.veckoglas ? 'över ditt tak' : (h.mal.veckoglas - glasVecka) + ' kvar till taket',
+      glasVecka > h.mal.veckoglas ? 'var(--terra)' : 'var(--green)') +
+    '</div>';
+
+  /* ---- idag ---- */
+  const dagensSchema = schemaForDag(wIdx(t));
+  const extraPass = passForDatum(ts).filter(p => !p.schemaId);
+  html += '<div class="card"><h2>🌿 Idag</h2>';
+  if(dagensSchema.length || extraPass.length){
+    for(const s of dagensSchema){
+      const gjort = schemapassGjort(s.id, ts);
+      html += '<div class="pass' + (gjort ? ' gjort' : '') + '">' +
+        '<span class="r-emoji">' + passEmoji(s.typ) + '</span>' +
+        '<div class="pa-text">' + esc(s.namn) +
+        '<div class="pa-dag">' + esc((PASSTYPER[s.typ] || PASSTYPER.annat).namn) +
+        (s.minuter ? ' · ' + esc(String(s.minuter)) + ' min' : '') + (gjort ? ' · genomfört ✓' : '') + '</div></div>' +
+        '<button class="pa-gor' + (gjort ? ' klar' : '') + '" title="' + (gjort ? 'Ångra' : 'Markera som genomfört') + '" ' +
+        'onclick="App.halsaPassKlar(\'' + s.id + '\')">✓</button></div>';
+    }
+    for(const p of extraPass){
+      html += '<div class="pass gjort"><span class="r-emoji">' + passEmoji(p.typ) + '</span>' +
+        '<div class="pa-text">' + esc(p.namn) +
+        '<div class="pa-dag">genomfört ✓' + (p.minuter ? ' · ' + esc(String(p.minuter)) + ' min' : '') + '</div></div>' +
+        '<button class="p-bort" title="Ta bort" onclick="App.halsaPassBort(\'' + p.id + '\')">✕</button></div>';
+    }
+  } else {
+    html += '<p class="small muted"><i>Ingen träning inlagd på ' + esc(WDAYS[wIdx(t)]) + 'ar — en vilodag, eller lägg till ett pass nedan.</i></p>';
+  }
+
+  /* logga ett pass utanför schemat */
+  if(!halsaForm.passOpen){
+    html += '<div class="knapprad"><button class="btn small ghost" onclick="App.halsaVisaPassForm(true)">+ Logga ett pass</button></div>';
+  } else {
+    html += '<div class="ny-form" style="margin-top:10px">' +
+      '<input type="text" id="halsaPassNamn" placeholder="Vad gjorde du? (t.ex. Simning)" onkeydown="if(event.key===\'Enter\')App.halsaPassNy()">' +
+      '<div class="ny-rad2">' +
+      '<select id="halsaPassTyp">' + Object.keys(PASSTYPER).map(k =>
+        '<option value="' + k + '">' + PASSTYPER[k].emoji + ' ' + PASSTYPER[k].namn + '</option>').join('') + '</select>' +
+      '<input type="number" id="halsaPassMin" placeholder="Minuter" style="flex:1;min-width:100px">' +
+      '<input type="date" id="halsaPassDatum" value="' + ts + '" style="flex:1">' +
+      '</div>' +
+      '<div class="knapprad"><button class="btn" onclick="App.halsaPassNy()">Spara passet</button>' +
+      '<button class="btn ghost" onclick="App.halsaVisaPassForm(false)">Avbryt</button></div></div>';
+  }
+
+  /* vikten idag */
+  const viktIdag = state.halsa.vikt.find(x => x.datum === ts);
+  html += '<div class="snabbrad" style="border-top:1px solid var(--line-soft); padding-top:10px; margin-top:12px">' +
+    '<span class="small muted">⚖️ Vikt idag:</span>' +
+    /* textfält med decimaltangentbord i stället för type=number: en svensk
+       telefon ger komma, och ett number-fält kastar tyst bort "68,4" */
+    '<input type="text" inputmode="decimal" id="halsaViktIdag" placeholder="kg" style="width:92px"' +
+    (viktIdag ? ' value="' + esc(String(viktIdag.kg).replace('.', ',')) + '"' : '') +
+    ' onkeydown="if(event.key===\'Enter\')App.halsaViktSpara()">' +
+    '<button class="btn small" onclick="App.halsaViktSpara()">' + (viktIdag ? 'Ändra' : 'Spara') + '</button>' +
+    '</div>';
+
+  /* alkoholen idag */
+  const glasIdag = alkoholForDatum(ts);
+  const regIdag = alkoholRegistrerad(ts);
+  html += '<div class="snabbrad" style="border-top:1px solid var(--line-soft); padding-top:10px; margin-top:10px">' +
+    '<span class="small muted">🍷 Alkohol idag:</span>' +
+    '<span class="small"><b>' + (regIdag ? (glasIdag === 0 ? 'alkoholfri dag' : glasIdag + (glasIdag === 1 ? ' glas' : ' glas')) : 'inte noterat') + '</b></span>' +
+    '</div>' +
+    '<div class="knapprad" style="margin-top:6px">' +
+    '<button class="btn small ghost" onclick="App.halsaAlkoholFri()">✓ Alkoholfri dag</button>' +
+    '<button class="btn small ghost" onclick="App.halsaAlkoholPlus(1)">+1 glas</button>' +
+    '<button class="btn small ghost" onclick="App.halsaAlkoholPlus(2)">+2 glas</button>' +
+    (regIdag ? '<button class="btn small ghost" onclick="App.halsaAlkoholRensa(\'' + ts + '\')">Ta bort dagens</button>' : '') +
+    '</div>' +
+    '<p class="small dim" style="margin-top:6px">Ett standardglas ≈ 33 cl starköl, 12–15 cl vin eller 4 cl sprit.</p>';
+  html += '</div>';
+
+  /* ---- träningsschemat ---- */
+  html += '<div class="card"><h2>🗓 Träningsschema</h2>' +
+    '<p class="small muted">Det här är veckan som återkommer. Passen dyker upp att bocka av på rätt dag — både här och under Idag.</p>';
+  if(!h.schema.length){
+    html += '<p class="small muted" style="margin-top:8px"><i>Inget schema ännu. Lägg upp veckans pass nedan så håller jag räkningen åt dig.</i></p>';
+  } else {
+    for(let dag = 0; dag < 7; dag++){
+      const pass = schemaForDag(dag);
+      if(!pass.length) continue;
+      const arIdag = dag === wIdx(t);
+      html += '<div class="omr-rubrik" style="margin-top:10px"><h3>' + esc(cap(WDAYS[dag])) +
+        (arIdag ? ' — idag' : '') + '</h3><span class="streck"></span></div>';
+      for(const s of pass){
+        html += '<div class="pass"><span class="r-emoji">' + passEmoji(s.typ) + '</span>' +
+          '<div class="pa-text">' + esc(s.namn) +
+          '<div class="pa-dag">' + esc((PASSTYPER[s.typ] || PASSTYPER.annat).namn) +
+          (s.minuter ? ' · ' + esc(String(s.minuter)) + ' min' : '') + '</div></div>' +
+          '<button class="p-bort" title="Ta bort ur schemat" onclick="App.halsaSchemaBort(\'' + s.id + '\')">✕</button></div>';
+      }
+    }
+  }
+  if(!halsaForm.schemaOpen){
+    html += '<div class="knapprad"><button class="btn small ghost" onclick="App.halsaVisaSchemaForm(true)">+ Lägg till pass i schemat</button></div>';
+  } else {
+    const valdDag = halsaForm.schemaDag === null ? wIdx(t) : halsaForm.schemaDag;
+    html += '<div class="ny-form" style="margin-top:10px">' +
+      '<div class="dagvalj">' + WDAYS.map((d, i) =>
+        '<button id="halsaDag' + i + '" class="' + (i === valdDag ? 'vald' : '') + '" onclick="App.halsaSchemaDag(' + i + ')">' +
+        esc(cap(d).slice(0, 3)) + '</button>').join('') + '</div>' +
+      '<input type="text" id="halsaSchemaNamn" placeholder="Vad ska du göra? (t.ex. Styrka, ben)" onkeydown="if(event.key===\'Enter\')App.halsaSchemaNy()">' +
+      '<div class="ny-rad2">' +
+      '<select id="halsaSchemaTyp">' + Object.keys(PASSTYPER).map(k =>
+        '<option value="' + k + '">' + PASSTYPER[k].emoji + ' ' + PASSTYPER[k].namn + '</option>').join('') + '</select>' +
+      '<input type="number" id="halsaSchemaMin" placeholder="Minuter" style="flex:1;min-width:100px">' +
+      '</div>' +
+      '<div class="knapprad"><button class="btn" onclick="App.halsaSchemaNy()">Lägg till</button>' +
+      '<button class="btn ghost" onclick="App.halsaVisaSchemaForm(false)">Avbryt</button></div></div>';
+  }
+  html += '</div>';
+
+  /* ---- vikten ---- */
+  const alla = viktSorterad();
+  const f30 = viktForandring(30);
+  html += '<div class="card"><h2>⚖️ Vikten</h2>';
+  if(!alla.length){
+    html += '<p class="small muted"><i>Ingen vägning registrerad ännu — skriv in dagens vikt under Idag så börjar kurvan.</i></p>';
+  } else {
+    const senaste90 = alla.filter(x => dagarTill(x.datum) >= -90);
+    const graf = viktGraf(senaste90.length >= 2 ? senaste90 : alla, h.mal.vikt);
+    if(graf){
+      html += graf +
+        '<p class="small dim" style="display:flex;justify-content:space-between;margin-top:-2px">' +
+        '<span>' + esc(String((senaste90.length >= 2 ? senaste90 : alla)[0].datum)) + '</span>' +
+        (h.mal.vikt ? '<span style="color:var(--bronze)">– – målvikt ' + esc(fmtKg(h.mal.vikt)) + '</span>' : '<span></span>') +
+        '<span>' + esc(String(v.datum)) + '</span></p>';
+    }
+    html += '<div class="rad" style="border-top:none"><span class="r-emoji">📍</span>' +
+      '<span class="r-text">Senast: <b>' + esc(fmtKg(v.kg)) + '</b> <span class="dim">(' + esc(narText(v.datum).text) + ')</span></span></div>' +
+      (f7 ? '<div class="rad"><span class="r-emoji">7️⃣</span><span class="r-text">Senaste veckan: <b>' + esc(fmtDiff(f7.kg)) + '</b></span></div>' : '') +
+      (f30 ? '<div class="rad"><span class="r-emoji">📅</span><span class="r-text">Senaste månaden: <b>' + esc(fmtDiff(f30.kg)) + '</b></span></div>' : '') +
+      (h.mal.vikt ? '<div class="rad"><span class="r-emoji">🎯</span><span class="r-text">Kvar till målvikten: <b>' +
+        esc(fmtKg(Math.abs(v.kg - h.mal.vikt))) + '</b>' + (Math.abs(v.kg - h.mal.vikt) < 0.05 ? ' — du är framme 🌿' : '') + '</span></div>' : '');
+
+    const visade = halsaForm.visaAllVikt ? alla.slice().reverse() : alla.slice().reverse().slice(0, 7);
+    html += '<div class="omr-rubrik" style="margin-top:12px"><h3>Vägningar</h3><span class="streck"></span></div>';
+    for(const x of visade){
+      html += '<div class="pass"><span class="r-emoji">⚖️</span>' +
+        '<div class="pa-text">' + esc(fmtKg(x.kg)) + '<div class="pa-dag">' + esc(cap(humanDate(parseDate(x.datum)))) + '</div></div>' +
+        '<button class="p-bort" title="Ta bort" onclick="App.halsaViktBort(\'' + x.datum + '\')">✕</button></div>';
+    }
+    if(alla.length > 7){
+      html += '<div class="knapprad"><button class="btn small ghost" onclick="App.halsaToggleVikt()">' +
+        (halsaForm.visaAllVikt ? 'Visa färre' : 'Visa alla ' + alla.length) + '</button></div>';
+    }
+  }
+  html += '</div>';
+
+  /* ---- alkoholen ---- */
+  const sedan = dagarSedanGlas();
+  const forraVeckan = alkoholIVeckan(addDays(t, -7));
+  html += '<div class="card"><h2>🍷 Alkoholen</h2>' +
+    '<div class="alk-rutnat">';
+  for(let i = 27; i >= 0; i--){
+    const ds = fmtDate(addDays(t, -i));
+    const glas = alkoholForDatum(ds);
+    const reg = alkoholRegistrerad(ds);
+    html += '<div class="alk-dag ' + alkKlass(glas, reg) + (ds === ts ? ' idag' : '') + '" title="' +
+      esc(cap(humanDate(parseDate(ds))) + ': ' + (reg ? (glas === 0 ? 'alkoholfri dag' : glas + ' glas') : 'inte noterat')) + '"></div>';
+  }
+  html += '</div>' +
+    '<p class="small dim" style="display:flex;justify-content:space-between">' +
+    '<span>fyra veckor sedan</span><span>idag</span></p>' +
+    '<div class="rad" style="border-top:1px solid var(--line-soft);margin-top:6px"><span class="r-emoji">📊</span>' +
+    '<span class="r-text">Denna vecka: <b>' + glasVecka + (glasVecka === 1 ? ' glas' : ' glas') + '</b>' +
+    (glasVecka > h.mal.veckoglas ? ' <span style="color:var(--terra)">— över ditt tak på ' + h.mal.veckoglas + '</span>' : '') +
+    '</span></div>' +
+    '<div class="rad"><span class="r-emoji">↩️</span><span class="r-text">Förra veckan: <b>' + forraVeckan + ' glas</b></span></div>' +
+    (sedan ? '<div class="rad"><span class="r-emoji">🌿</span><span class="r-text">' +
+      (sedan.dagar === 0 ? 'Senaste glaset: <b>idag</b>'
+        : 'Alkoholfritt i <b>' + sedan.dagar + (sedan.dagar === 1 ? ' dag' : ' dagar') + '</b>') +
+      '</span></div>' : '');
+
+  const alkAlla = state.halsa.alkohol.slice().sort((a, b) => String(b.datum).localeCompare(String(a.datum)));
+  if(alkAlla.length){
+    const alkVisade = halsaForm.visaAllAlk ? alkAlla : alkAlla.slice(0, 7);
+    html += '<div class="omr-rubrik" style="margin-top:12px"><h3>Noterat</h3><span class="streck"></span></div>';
+    for(const a of alkVisade){
+      const g = Number(a.glas) || 0;
+      html += '<div class="pass"><span class="r-emoji">' + (g === 0 ? '🌿' : '🍷') + '</span>' +
+        '<div class="pa-text">' + (g === 0 ? 'Alkoholfri dag' : g + (g === 1 ? ' glas' : ' glas')) +
+        (a.vad ? ' — ' + esc(a.vad) : '') +
+        '<div class="pa-dag">' + esc(cap(humanDate(parseDate(a.datum)))) + '</div></div>' +
+        '<button class="p-bort" title="Ta bort" onclick="App.halsaAlkoholRensa(\'' + a.datum + '\')">✕</button></div>';
+    }
+    if(alkAlla.length > 7){
+      html += '<div class="knapprad"><button class="btn small ghost" onclick="App.halsaToggleAlk()">' +
+        (halsaForm.visaAllAlk ? 'Visa färre' : 'Visa alla ' + alkAlla.length) + '</button></div>';
+    }
+  }
+  /* noteras i efterhand, för dagar som glömts bort */
+  html += '<div class="ny-form" style="margin-top:12px">' +
+    '<div class="ny-rad2">' +
+    '<input type="number" id="halsaAlkGlas" min="0" max="40" placeholder="Antal glas" style="flex:1;min-width:110px">' +
+    '<input type="date" id="halsaAlkDatum" value="' + ts + '" style="flex:1">' +
+    '</div>' +
+    '<div class="ny-rad2">' +
+    '<input type="text" id="halsaAlkVad" placeholder="Vad? (valfritt — t.ex. middag med Karin)" style="flex:1;min-width:150px">' +
+    '<button class="btn" onclick="App.halsaAlkoholNy()">Notera</button>' +
+    '</div></div>';
+  html += '</div>';
+
+  /* ---- mål ---- */
+  html += '<div class="card"><h2>🎯 Mina mål</h2>' +
+    '<div class="ny-form">' +
+    '<div class="ny-rad2" style="align-items:center">' +
+    '<span class="small muted" style="flex:1;min-width:120px">Pass per vecka</span>' +
+    '<input type="number" id="malVeckopass" min="0" max="14" value="' + esc(String(h.mal.veckopass)) + '" style="width:92px">' +
+    '</div>' +
+    '<div class="ny-rad2" style="align-items:center">' +
+    '<span class="small muted" style="flex:1;min-width:120px">Målvikt (kg)</span>' +
+    '<input type="text" inputmode="decimal" id="malVikt" value="' + (h.mal.vikt ? esc(String(h.mal.vikt).replace('.', ',')) : '') + '" placeholder="–" style="width:92px">' +
+    '</div>' +
+    '<div class="ny-rad2" style="align-items:center">' +
+    '<span class="small muted" style="flex:1;min-width:120px">Högst antal glas per vecka</span>' +
+    '<input type="number" id="malVeckoglas" min="0" max="40" value="' + esc(String(h.mal.veckoglas)) + '" style="width:92px">' +
+    '</div>' +
+    '<div class="knapprad"><button class="btn" onclick="App.halsaMalSpara()">Spara målen</button></div>' +
+    '</div>' +
+    '<p class="small dim" style="margin-top:8px">Folkhälsomyndigheten räknar mer än 10 standardglas i veckan som riskbruk — därför står taket på 9 från början. Ändra det till vad som är ditt.</p>' +
+    (session ? '' : '<p class="small muted" style="margin-top:8px">Du är utloggad, så det här sparas bara i den här telefonen. Logga in på Idag-fliken så följer hälsan med till kontot.</p>') +
+    '</div>';
+
+  el.innerHTML = html;
 }
 
 /* ================= Ekonomi ================= */
@@ -1809,6 +2309,7 @@ function renderAll(){
   renderIntervju();
   renderIdag();
   renderBevaka();
+  renderHalsa();
   renderEkonomi();
   renderMejl();
   renderMer();
@@ -1819,7 +2320,7 @@ const App = {
   tab: 'idag',
   go(tab){
     this.tab = tab;
-    for(const t of ['idag','bevaka','ekonomi','mejl','mer','intervju']){
+    for(const t of ['idag','bevaka','halsa','ekonomi','mejl','mer','intervju']){
       const vy = document.getElementById('view-' + t);
       if(vy) vy.classList.toggle('open', t === tab);
       const knapp = document.getElementById('tab-' + t);
@@ -1956,6 +2457,193 @@ const App = {
     toast('Jag påminner dig om ' + dagar + (dagar === 1 ? ' dag' : ' dagar') +
       (res === 'skickad' ? ' — och svarar på kommentaren i chatten ovanför'
        : res === 'antecknad' ? ' — kommentaren är antecknad' : ''));
+  },
+
+  /* ---- hälsa ---- */
+  halsaVisaPassForm(open){
+    halsaForm.passOpen = open;
+    renderHalsa();
+    if(open){ const el = document.getElementById('halsaPassNamn'); if(el) el.focus(); }
+  },
+  /* bocka av (eller ångra) ett schemalagt pass för idag */
+  halsaPassKlar(schemaId){
+    const ts = fmtDate(todayDate());
+    const s = state.halsa.schema.find(x => x.id === schemaId);
+    if(!s) return;
+    const gjort = schemapassGjort(schemaId, ts);
+    if(gjort){
+      state.halsa.pass = state.halsa.pass.filter(p => p.id !== gjort.id);
+      toast('Ångrat — passet är oavklarat igen');
+    } else {
+      state.halsa.pass.push({
+        id: 'h' + Date.now() + Math.random().toString(36).slice(2, 5),
+        datum: ts, namn: s.namn, typ: s.typ, minuter: s.minuter || null,
+        schemaId: schemaId, loggat: new Date().toISOString()
+      });
+      const kvar = state.halsa.mal.veckopass - passIVeckan(todayDate()).length;
+      toast(kvar > 0 ? 'Bra gjort 🌿 ' + kvar + (kvar === 1 ? ' pass kvar i veckan' : ' pass kvar i veckan')
+        : 'Bra gjort 🌿 veckans mål är nått');
+    }
+    save();
+    scheduleHalsaPush();
+    renderHalsa();
+    renderIdag();
+  },
+  halsaPassNy(){
+    const namn = document.getElementById('halsaPassNamn').value.trim();
+    if(!namn){ toast('Skriv vad du gjorde först'); return; }
+    const typ = document.getElementById('halsaPassTyp').value;
+    const min = Number(document.getElementById('halsaPassMin').value) || null;
+    const datum = document.getElementById('halsaPassDatum').value || fmtDate(todayDate());
+    state.halsa.pass.push({
+      id: 'h' + Date.now() + Math.random().toString(36).slice(2, 5),
+      datum: datum, namn: namn, typ: PASSTYPER[typ] ? typ : 'annat', minuter: min,
+      loggat: new Date().toISOString()
+    });
+    halsaForm.passOpen = false;
+    save();
+    scheduleHalsaPush();
+    renderHalsa();
+    renderIdag();
+    toast('Noterat 🌿');
+  },
+  halsaPassBort(id){
+    state.halsa.pass = state.halsa.pass.filter(p => p.id !== id);
+    save();
+    scheduleHalsaPush();
+    renderHalsa();
+    renderIdag();
+  },
+  halsaVisaSchemaForm(open){
+    halsaForm.schemaOpen = open;
+    if(open) halsaForm.schemaDag = wIdx(todayDate());
+    renderHalsa();
+    if(open){ const el = document.getElementById('halsaSchemaNamn'); if(el) el.focus(); }
+  },
+  /* byt bara markerad dag — ingen omritning, så det som skrivits står kvar */
+  halsaSchemaDag(dag){
+    halsaForm.schemaDag = dag;
+    for(let i = 0; i < 7; i++){
+      const knapp = document.getElementById('halsaDag' + i);
+      if(knapp) knapp.className = i === dag ? 'vald' : '';
+    }
+  },
+  halsaSchemaNy(){
+    const namn = document.getElementById('halsaSchemaNamn').value.trim();
+    if(!namn){ toast('Skriv vad passet heter först'); return; }
+    const typ = document.getElementById('halsaSchemaTyp').value;
+    const min = Number(document.getElementById('halsaSchemaMin').value) || null;
+    const dag = halsaForm.schemaDag === null ? wIdx(todayDate()) : halsaForm.schemaDag;
+    state.halsa.schema.push({
+      id: 's' + Date.now() + Math.random().toString(36).slice(2, 5),
+      dag: dag, namn: namn, typ: PASSTYPER[typ] ? typ : 'annat', minuter: min
+    });
+    halsaForm.schemaOpen = false;
+    save();
+    scheduleHalsaPush();
+    renderHalsa();
+    renderIdag();
+    toast('Inlagt på ' + WDAYS[dag] + 'ar 🗓');
+  },
+  halsaSchemaBort(id){
+    const s = state.halsa.schema.find(x => x.id === id);
+    if(!s) return;
+    if(!confirm('Ta bort "' + s.namn + '" ur schemat? Passen du redan bockat av ligger kvar.')) return;
+    state.halsa.schema = state.halsa.schema.filter(x => x.id !== id);
+    save();
+    scheduleHalsaPush();
+    renderHalsa();
+    renderIdag();
+  },
+  halsaViktSpara(){
+    const el = document.getElementById('halsaViktIdag');
+    const kg = Number(String(el.value).replace(',', '.'));
+    if(!kg || kg < 20 || kg > 300){ toast('Skriv vikten i kilo, t.ex. 68,4'); return; }
+    this.halsaViktSatt(fmtDate(todayDate()), kg);
+  },
+  /* en vägning per dag — samma dag igen skriver över den gamla */
+  halsaViktSatt(datum, kg){
+    const rundad = Math.round(kg * 10) / 10;
+    const finns = state.halsa.vikt.find(x => x.datum === datum);
+    if(finns) finns.kg = rundad;
+    else state.halsa.vikt.push({ datum: datum, kg: rundad });
+    save();
+    scheduleHalsaPush();
+    renderHalsa();
+    renderIdag();
+    const mal = state.halsa.mal.vikt;
+    toast('Antecknat: ' + fmtKg(rundad) + (mal ? ' · ' + fmtKg(Math.abs(rundad - mal)) + ' från målet' : ''));
+  },
+  halsaViktBort(datum){
+    state.halsa.vikt = state.halsa.vikt.filter(x => x.datum !== datum);
+    save();
+    scheduleHalsaPush();
+    renderHalsa();
+    renderIdag();
+  },
+  halsaToggleVikt(){
+    halsaForm.visaAllVikt = !halsaForm.visaAllVikt;
+    renderHalsa();
+  },
+  halsaAlkoholFri(){
+    this.halsaAlkoholSatt(fmtDate(todayDate()), 0, '');
+    toast('Alkoholfri dag noterad 🌿');
+  },
+  /* +1/+2 lägger till ovanpå det som redan noterats för dagen */
+  halsaAlkoholPlus(n){
+    const ts = fmtDate(todayDate());
+    this.halsaAlkoholSatt(ts, alkoholForDatum(ts) + n, '');
+    const nu = alkoholForDatum(ts);
+    toast(nu + (nu === 1 ? ' glas' : ' glas') + ' idag');
+  },
+  halsaAlkoholNy(){
+    const glasEl = document.getElementById('halsaAlkGlas');
+    const glas = Number(glasEl.value);
+    if(glasEl.value === '' || isNaN(glas) || glas < 0){ toast('Skriv antal glas (0 för en alkoholfri dag)'); return; }
+    const datum = document.getElementById('halsaAlkDatum').value || fmtDate(todayDate());
+    const vad = document.getElementById('halsaAlkVad').value.trim();
+    this.halsaAlkoholSatt(datum, glas, vad);
+    toast(glas === 0 ? 'Alkoholfri dag noterad 🌿' : 'Noterat: ' + glas + (glas === 1 ? ' glas' : ' glas'));
+  },
+  /* en rad per dag — dagen skrivs över när den noteras igen */
+  halsaAlkoholSatt(datum, glas, vad){
+    const antal = Math.max(0, Math.round(Number(glas) || 0));
+    const finns = state.halsa.alkohol.find(a => a.datum === datum);
+    if(finns){
+      finns.glas = antal;
+      if(vad) finns.vad = vad;
+    } else {
+      state.halsa.alkohol.push({ datum: datum, glas: antal, vad: vad || '' });
+    }
+    save();
+    scheduleHalsaPush();
+    renderHalsa();
+    renderIdag();
+  },
+  halsaAlkoholRensa(datum){
+    state.halsa.alkohol = state.halsa.alkohol.filter(a => a.datum !== datum);
+    save();
+    scheduleHalsaPush();
+    renderHalsa();
+    renderIdag();
+  },
+  halsaToggleAlk(){
+    halsaForm.visaAllAlk = !halsaForm.visaAllAlk;
+    renderHalsa();
+  },
+  halsaMalSpara(){
+    const pass = Number(document.getElementById('malVeckopass').value);
+    const viktRaw = String(document.getElementById('malVikt').value).replace(',', '.').trim();
+    const glas = Number(document.getElementById('malVeckoglas').value);
+    state.halsa.mal.veckopass = (pass >= 0 && pass <= 14) ? pass : state.halsa.mal.veckopass;
+    state.halsa.mal.veckoglas = (glas >= 0 && glas <= 40) ? glas : state.halsa.mal.veckoglas;
+    state.halsa.mal.vikt = viktRaw === '' ? null
+      : ((Number(viktRaw) >= 20 && Number(viktRaw) <= 300) ? Math.round(Number(viktRaw) * 10) / 10 : state.halsa.mal.vikt);
+    save();
+    scheduleHalsaPush();
+    renderHalsa();
+    renderIdag();
+    toast('Målen är sparade 🎯');
   },
 
   /* ---- ekonomi ---- */
@@ -2406,6 +3094,36 @@ const App = {
         }
       }
       if(ekoAndrat){ save(); scheduleEkonomiPush(); renderEkonomi(); }
+      /* hälsonoteringar direkt ur samtalet — samma regler som knapparna på
+         Hälsa-fliken: en vägning och en alkoholrad per dag, passen läggs på */
+      const halsaLista = Array.isArray(resultat.halsa) ? resultat.halsa : [];
+      let halsaAndrat = false;
+      for(const p of halsaLista){
+        if(!p || !p.action) continue;
+        const datum = /^\d{4}-\d{2}-\d{2}$/.test(String(p.datum || '')) ? String(p.datum) : fmtDate(todayDate());
+        if(p.action === 'vikt' && Number(p.kg) >= 20 && Number(p.kg) <= 300){
+          const kg = Math.round(Number(p.kg) * 10) / 10;
+          const finns = state.halsa.vikt.find(x => x.datum === datum);
+          if(finns) finns.kg = kg; else state.halsa.vikt.push({ datum: datum, kg: kg });
+          halsaAndrat = true;
+        } else if(p.action === 'alkohol' && Number(p.glas) >= 0){
+          const glas = Math.round(Number(p.glas));
+          const finns = state.halsa.alkohol.find(a => a.datum === datum);
+          if(finns){ finns.glas = glas; if(p.vad) finns.vad = String(p.vad); }
+          else state.halsa.alkohol.push({ datum: datum, glas: glas, vad: p.vad ? String(p.vad) : '' });
+          halsaAndrat = true;
+        } else if(p.action === 'pass' && p.namn){
+          state.halsa.pass.push({
+            id: 'h' + Date.now() + Math.random().toString(36).slice(2, 5),
+            datum: datum, namn: String(p.namn),
+            typ: PASSTYPER[p.typ] ? p.typ : 'annat',
+            minuter: Number(p.minuter) || null,
+            loggat: new Date().toISOString()
+          });
+          halsaAndrat = true;
+        }
+      }
+      if(halsaAndrat){ save(); scheduleHalsaPush(); renderHalsa(); }
       /* varaktig minnesanteckning → assistentens interna profil */
       if(resultat.anteckning && String(resultat.anteckning).trim()){
         state.data.profil = state.data.profil || {};
